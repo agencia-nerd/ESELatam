@@ -9647,9 +9647,15 @@
     background: var(--color-accent);
   }
 
+  /* --globo-w / --globo-overlap: el globo asoma bajo la esquina de la última
+     tarjeta (Figma) y solo la pisa en su padding, nunca sobre el texto. El
+     padding inferior le reserva el resto de su alto (proporción ~1.2). */
   .desafios__panels {
+    --globo-w: clamp(140px, 14.3vw, 206px); /* 206×246 a partir de 1440 */
+    --globo-overlap: 24px;
     position: relative;
     margin-top: clamp(2.5rem, 6vh, 3.5rem);
+    padding-bottom: calc(var(--globo-w) * 1.2 - var(--globo-overlap));
   }
 
   .desafios__panel {
@@ -9746,10 +9752,6 @@
     color: var(--color-circulogic-orange);
   }
 
-  .desafios__panel--alivio .desafio__sub {
-    color: var(--color-circulogic-green-dark);
-  }
-
   .desafio__desc {
     font-size: 16px;
     font-weight: 500;
@@ -9762,15 +9764,60 @@
     color: var(--color-white);
   }
 
+  /* Alivio: las tarjetas sin foto toman los colores de marca según su lugar
+     en la grilla (a/d azul, b/c naranja, e/f verde) y el texto pasa a blanco. */
+  .desafios__panel--alivio .desafio:not(.desafio--photo) {
+    background: var(--color-primary);
+  }
+
+  .desafios__panel--alivio :is(.desafio--b, .desafio--c):not(.desafio--photo) {
+    background: var(--color-circulogic-orange);
+  }
+
+  .desafios__panel--alivio :is(.desafio--e, .desafio--f):not(.desafio--photo) {
+    background: var(--color-circulogic-green);
+  }
+
+  .desafios__panel--alivio .desafio:not(.desafio--photo) :is(.desafio__title, .desafio__sub) {
+    color: var(--color-white);
+  }
+
+  .desafios__panel--alivio .desafio:not(.desafio--photo) .desafio__desc {
+    color: rgb(255 255 255 / 0.8);
+  }
+
+  .desafios__panel--alivio .desafio--photo .desafio__sub {
+    color: var(--color-circulogic-green);
+  }
+
   .desafios__globo {
     position: absolute;
-    right: calc(var(--nos-gutter) * -0.35);
-    bottom: -3rem;
+    right: clamp(16px, 2.5vw, 40px);
+    bottom: 20px;
     z-index: 2;
-    width: clamp(120px, 12vw, 200px);
-    height: auto;
+    display: grid;
+    width: var(--globo-w);
     pointer-events: none;
     filter: drop-shadow(0 20px 30px rgb(0 0 0 / 0.25));
+  }
+
+  /* Globo (dolores) y tacho azul (alivio) apilados en la misma celda: el
+     panel activo decide cuál se ve, con un fundido corto. */
+  .desafios__globo-img {
+    grid-area: 1 / 1;
+    align-self: end;
+    width: 100%;
+    height: auto;
+    transition: opacity 0.4s ease;
+  }
+
+  .desafios__globo-img--alivio,
+  .desafios__panels:has(.desafios__panel--alivio.is-active) .desafios__globo-img--dolores {
+    opacity: 0;
+  }
+
+  .desafios__panels:has(.desafios__panel--alivio.is-active) .desafios__globo-img--alivio {
+    opacity: 1;
   }
 
   @media (width < 64rem) {
@@ -9793,6 +9840,15 @@
 
     .desafio--tall {
       min-height: 624px;
+    }
+
+    /* El globo/tacho es solo de desktop: sin él tampoco hace falta su hueco. */
+    .desafios__panels {
+      padding-bottom: 0;
+    }
+
+    .desafios__globo {
+      display: none;
     }
   }
 
@@ -9817,9 +9873,6 @@
       min-height: 360px;
     }
 
-    .desafios__globo {
-      display: none;
-    }
   }
 
   /* ---------- Criterio de adaptabilidad (sector-criterio.php) ---------- */

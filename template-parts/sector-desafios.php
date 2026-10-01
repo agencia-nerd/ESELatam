@@ -3,7 +3,9 @@
  * Single de sector — "Desafíos en la gestión urbana" (Figma 3583-4927):
  * header + par de pills que alternan entre "Dolores y brechas" y "Alivio
  * ESE Latam", cada una con su grilla bento de 6 tarjetas (4 grises + 2 con
- * foto). El cambio lo maneja tab-panels.ts (data-tabs).
+ * foto). En "Alivio" las 4 grises pasan a azul/naranja/verde y el globo se
+ * cambia por el tacho azul (solo CSS). El cambio lo maneja tab-panels.ts
+ * (data-tabs).
  *
  * @param array{
  *     kicker?: string, title?: string, desc?: string,
@@ -94,8 +96,14 @@ $ese_paneles = array_values(array_filter($ese_paneles, static fn (array $p): boo
             </div>
         <?php endforeach; ?>
 
-        <img class="desafios__globo" src="<?php echo esc_url($ese_img('sectores/desafio-globo.webp')); ?>" alt=""
-            width="600" height="720" loading="lazy" decoding="async" aria-hidden="true"
-            data-float data-float-distance="10" data-float-duration="4">
+        <?php // Flota el contenedor, no cada foto: así el globo (dolores) y el tacho (alivio) se funden en el mismo punto. ?>
+        <span class="desafios__globo" aria-hidden="true" data-float data-float-distance="10" data-float-duration="4">
+            <img class="desafios__globo-img desafios__globo-img--dolores" src="<?php echo esc_url($ese_img('sectores/desafio-globo.webp')); ?>" alt=""
+                width="600" height="720" loading="lazy" decoding="async">
+            <?php if (count($ese_paneles) > 1) : ?>
+                <img class="desafios__globo-img desafios__globo-img--alivio" src="<?php echo esc_url($ese_img('sectores/tacho-azul.webp')); ?>" alt=""
+                    width="622" height="678" loading="lazy" decoding="async">
+            <?php endif; ?>
+        </span>
     </div>
 </section>
