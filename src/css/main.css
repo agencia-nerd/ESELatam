@@ -9419,6 +9419,24 @@
     max-width: 508px;
   }
 
+  /* Desktop: titular y aside siempre lado a lado. Con flex-wrap, un titular
+     largo empujaba el aside debajo aunque hubiera ancho de sobra; aquí el
+     titular cede ancho (rompe en más líneas) y el aside se angosta un poco. */
+  @media (width >=64rem) {
+    .nos-hero__bottom:has(> .nos-hero__aside) {
+      flex-wrap: nowrap;
+    }
+
+    .nos-hero__bottom > .nos-hero__heading {
+      flex: 0 1 auto;
+    }
+
+    .nos-hero__bottom > .nos-hero__aside {
+      flex: 0 1 508px;
+      min-width: 20rem;
+    }
+  }
+
   .nosotros.is-js .nos-hero__kicker,
   .nosotros.is-js .nos-hero__cta {
     visibility: hidden;
