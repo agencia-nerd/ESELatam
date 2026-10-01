@@ -61,7 +61,7 @@ $ese_vc_enlace       = ese_latam_enlace(ese_latam_campo('certpag_val_enlace', $e
             <?php endif; ?>
         </header>
         <div class="valida__photo" data-reveal="up" data-reveal-delay="0.2">
-            <img src="<?php echo esc_url(ESE_LATAM_URI . '/assets/imgs/nosotros/parque.webp'); ?>" alt="" loading="lazy" decoding="async"
+            <img src="<?php echo esc_url(ESE_LATAM_URI . '/assets/imgs/certificaciones/valida-certificados.webp'); ?>" alt="" loading="lazy" decoding="async"
                 data-parallax data-parallax-from="8" data-parallax-to="-8">
         </div>
     </div>
