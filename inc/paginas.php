@@ -38,6 +38,7 @@ function ese_latam_paginas_base(): array {
         'certificaciones' => ['title' => __('Certificaciones', 'ese-latam'),         'template' => ''],
         'impacto'         => ['title' => __('Residuos inteligentes', 'ese-latam'),   'template' => ''],
         'distribuidores'  => ['title' => __('Encuentra un distribuidor', 'ese-latam'), 'template' => ''],
+        'preguntas-frecuentes' => ['title' => __('Preguntas frecuentes', 'ese-latam'), 'template' => ''],
         // El blog no tiene page-blog.php: es la página de entradas
         // (Ajustes → Lectura), así que WordPress la pinta con home.php.
         // ese_latam_asegurar_blog() la fija. Existe como página para poder
@@ -153,15 +154,15 @@ add_action('after_switch_theme', 'ese_latam_asegurar_portada');
 /**
  * El header del sitio está pensado para heros OSCUROS: el logo va en blanco
  * (filtro brightness/invert en main.css) y el nav-pill sin borde. Las
- * páginas que abren con fondo claro (Contacto, Sectores) necesitan la
+ * páginas que abren con fondo claro (Contacto, Sectores, Preguntas frecuentes) necesitan la
  * variante inversa — esta clase en el <body> y el CSS hace el resto.
  *
  * @param list<string> $classes
  * @return list<string>
  */
 function ese_latam_body_class_hero_claro(array $classes): array {
-    if (is_page(['contacto', 'sectores'])
-        || is_page_template(['page-contacto.php', 'page-sectores.php'])
+    if (is_page(['contacto', 'sectores', 'preguntas-frecuentes'])
+        || is_page_template(['page-contacto.php', 'page-sectores.php', 'page-preguntas-frecuentes.php'])
     ) {
         $classes[] = 'has-light-hero';
     }
