@@ -6,8 +6,7 @@
  * Las preguntas son el módulo "Preguntas frecuentes" (CPT `faq`, ver
  * inc/modulos.php) y se agrupan con la taxonomía `faq_categoria`. La página
  * no guarda preguntas propias: solo el copy del hero y del índice
- * (inc/pcf-preguntas-frecuentes.php). Así una pregunta se edita una vez y,
- * si se marca, sale también en el acordeón de Contacto.
+ * (inc/pcf-preguntas-frecuentes.php).
  *
  * @package EseLatam
  */
@@ -52,30 +51,12 @@ function ese_latam_faq_por_categoria(): array {
     foreach ($terminos as $termino) {
         $preguntas = [];
 
-        $entradas = get_posts([
-            'post_type'        => 'faq',
-            'post_status'      => 'publish',
-            'posts_per_page'   => -1,
-            'orderby'          => 'menu_order title',
-            'order'            => 'ASC',
-            'suppress_filters' => false,
-            'tax_query'        => [[
-                'taxonomy' => 'faq_categoria',
-                'field'    => 'term_id',
-                'terms'    => $termino->term_id,
-            ]],
-        ]);
-
-        foreach ($entradas as $entrada) {
-            if (isset($vistas[$entrada->ID])) {
+        foreach (ese_latam_faq_de_categoria($termino->term_id) as $faq_id => $faq) {
+            if (isset($vistas[$faq_id])) {
                 continue;
             }
-            $vistas[$entrada->ID] = true;
-
-            $preguntas[] = [
-                'q' => get_the_title($entrada->ID),
-                'a' => ese_latam_texto_rico((string) ese_latam_campo('respuesta', $entrada->ID, '')),
-            ];
+            $vistas[$faq_id] = true;
+            $preguntas[]     = $faq;
         }
 
         if ([] === $preguntas) {
@@ -94,6 +75,96 @@ function ese_latam_faq_por_categoria(): array {
 
     return $categorias;
 }
+
+/**
+ * Preguntas publicadas de una categoría, en el orden del campo "Orden" de
+ * cada pregunta, indexadas por ID (para poder descartar repetidas).
+ *
+ * @return array<int, array{q: string, a: string}>
+ */
+function ese_latam_faq_de_categoria(int $term_id): array {
+    if ($term_id <= 0) {
+        return [];
+    }
+
+    $entradas = get_posts([
+        'post_type'        => 'faq',
+        'post_status'      => 'publish',
+        'posts_per_page'   => -1,
+        'orderby'          => 'menu_order title',
+        'order'            => 'ASC',
+        'suppress_filters' => false,
+        'tax_query'        => [[
+            'taxonomy' => 'faq_categoria',
+            'field'    => 'term_id',
+            'terms'    => $term_id,
+        ]],
+    ]);
+
+    $preguntas = [];
+    foreach ($entradas as $entrada) {
+        $preguntas[$entrada->ID] = [
+            'q' => get_the_title($entrada->ID),
+            'a' => ese_latam_texto_rico((string) ese_latam_campo('respuesta', $entrada->ID, '')),
+        ];
+    }
+
+    return $preguntas;
+}
+
+/**
+ * Resuelve la categoría de una sección de preguntas: la que eligió el
+ * editor (ID de término) o, si no eligió ninguna, la del slug por defecto.
+ * 0 si no existe ninguna de las dos.
+ *
+ * @param mixed $elegida Valor del campo de taxonomía (ID, objeto o vacío).
+ */
+function ese_latam_faq_categoria_id($elegida, string $slug_defecto): int {
+    if ($elegida instanceof WP_Term) {
+        return $elegida->term_id;
+    }
+    if (is_array($elegida)) {
+        $elegida = reset($elegida);
+    }
+    if (is_numeric($elegida) && (int) $elegida > 0 && term_exists((int) $elegida, 'faq_categoria')) {
+        return (int) $elegida;
+    }
+
+    $termino = get_term_by('slug', $slug_defecto, 'faq_categoria');
+
+    return $termino instanceof WP_Term ? $termino->term_id : 0;
+}
+
+/**
+ * Copy inicial de la sección de preguntas de Certificaciones, una sola vez
+ * y solo en los campos vacíos (mismo criterio que ese_latam_sembrar_faq()).
+ */
+function ese_latam_sembrar_faq_certificaciones(): void {
+    if (get_option('ese_latam_faq_cert_sembrada') || ! ese_latam_campos_activos()) {
+        return;
+    }
+
+    $pagina = get_page_by_path('certificaciones');
+    if ($pagina instanceof WP_Post) {
+        $copy = [
+            'certpag_faq_kicker' => 'Preguntas frecuentes',
+            'certpag_faq_titulo' => "Dudas sobre\n|certificaciones|",
+            'certpag_faq_enlace' => [
+                'title'  => 'Ver todas las preguntas',
+                'url'    => ese_latam_pagina_url('preguntas-frecuentes', home_url('/preguntas-frecuentes/')),
+                'target' => '',
+            ],
+        ];
+        foreach ($copy as $campo => $valor) {
+            if (ese_latam_campo_vacio(get_field($campo, $pagina->ID))) {
+                update_field($campo, $valor, $pagina->ID);
+            }
+        }
+    }
+
+    update_option('ese_latam_faq_cert_sembrada', 1);
+}
+add_action('init', 'ese_latam_sembrar_faq_certificaciones', 31);
 
 /**
  * Carga inicial: las cuatro categorías y las preguntas del documento de
@@ -200,9 +271,6 @@ function ese_latam_sembrar_faq(): void {
                 if (is_wp_error($faq_id) || 0 === $faq_id) {
                     continue;
                 }
-                // Las nuevas no se suman al acordeón de Contacto: allá ya
-                // están las que el cliente eligió.
-                update_field('en_contacto', 0, $faq_id);
             }
 
             if ('' === trim((string) get_field('respuesta', $faq_id))) {

@@ -10,7 +10,9 @@
  * Composición, en orden del Figma:
  *   1. Titular + formulario de asesoría + información de contacto
  *   2. Sede central (dirección + mapa embebido)
- *   3. Preguntas frecuentes (acordeón)
+ *
+ * Las preguntas frecuentes ya no van acá: tienen su propia página
+ * (page-preguntas-frecuentes.php).
  *
  * Cada bloque es un template-part autocontenido, igual que en el resto del
  * theme: resuelve sus propios datos y se puede reordenar o quitar sin
@@ -29,7 +31,6 @@ get_header();
     <?php
     get_template_part('template-parts/contacto-form');
     get_template_part('template-parts/contacto-sede');
-    get_template_part('template-parts/contacto-faq');
     ?>
 </div>
 

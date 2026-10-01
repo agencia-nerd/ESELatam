@@ -1,7 +1,7 @@
 <?php
 /**
- * Acordeón de preguntas frecuentes, compartido por la página de Contacto y
- * la página "Preguntas frecuentes".
+ * Acordeón de preguntas frecuentes de la página "Preguntas frecuentes" (uno
+ * por categoría).
  *
  * `<details>`/`<summary>` nativos: abrir y cerrar funciona sin JS, y
  * src/ts/modules/faq-acordeon.ts solo agrega la animación de altura y la

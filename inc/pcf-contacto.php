@@ -252,27 +252,6 @@ add_action('acf/init', static function (): void {
                     'ui'            => 1,
                     'wrapper'       => ['width' => '50'],
                 ]),
-            ],
-
-            /* ---------------- Preguntas ---------------- */
-            [$tab('ctc_faq', __('Preguntas frecuentes', 'ese-latam'))],
-            [
-                $campo('message', '', __('Dónde se editan las preguntas frecuentes', 'ese-latam'), [
-                    'key'      => 'field_ctcfaq_msg',
-                    'message'  => __('Salen del módulo <strong>Preguntas frecuentes</strong> del menú lateral. Acá solo se define cómo se presenta la sección. Sin preguntas publicadas, la sección no se muestra.', 'ese-latam'),
-                    'esc_html' => 0,
-                ]),
-                $campo('text', 'ctc_faq_kicker', __('Antetítulo sobre el titular de preguntas', 'ese-latam'), [
-                    'instructions' => __('Palabra o frase corta en mayúsculas, con una barra delante, encima del titular. Hasta 30 caracteres. Vacío: no se muestra.', 'ese-latam'),
-                    'placeholder'  => __('Respondemos dudas', 'ese-latam'),
-                    'wrapper'      => ['width' => '40'],
-                ]),
-                $campo('textarea', 'ctc_faq_titulo', __('Titular de las preguntas frecuentes', 'ese-latam'), [
-                    'instructions' => __('Frase grande sobre el acordeón de preguntas, al final de la página.', 'ese-latam') . ' ' . ese_latam_ayuda_titulo(),
-                    'rows'         => 2,
-                    'placeholder'  => "Preguntas\n|frecuentes|",
-                    'wrapper'      => ['width' => '60'],
-                ]),
             ]
         ),
     ]);

@@ -160,16 +160,11 @@ add_action('acf/init', static function (): void {
         'faq',
         [
             $campo('wysiwyg', 'respuesta', __('Respuesta a la pregunta frecuente', 'ese-latam'), [
-                'instructions' => __('Texto que se despliega al abrir la pregunta en el acordeón, en la página Preguntas frecuentes y en la de Contacto. Un párrafo corto.', 'ese-latam'),
+                'instructions' => __('Texto que se despliega al abrir la pregunta en el acordeón de la página Preguntas frecuentes. Un párrafo corto.', 'ese-latam'),
                 'tabs'         => 'visual',
                 'toolbar'      => 'basic',
                 'media_upload' => 0,
                 'required'     => 1,
-            ]),
-            $campo('true_false', 'en_contacto', __('¿Mostrar también en la página de Contacto?', 'ese-latam'), [
-                'instructions'  => __('Encendido: la pregunta sale además en el acordeón al pie de la página de Contacto. Apagado: solo sale en la página Preguntas frecuentes.', 'ese-latam'),
-                'default_value' => 1,
-                'ui'            => 1,
             ]),
         ],
         __('El título de la entrada es la pregunta. En la página Preguntas frecuentes se agrupan por la categoría que marques en la columna derecha (una sola); sin categoría, no salen ahí. El campo «Orden» define el orden dentro de su categoría.', 'ese-latam')

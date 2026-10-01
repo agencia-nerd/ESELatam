@@ -11,7 +11,7 @@
  *   2. Índice de categorías pegajoso + un acordeón por categoría. El índice
  *      marca la categoría que se está leyendo con src/ts/modules/legal.ts
  *      (el mismo de las páginas legales) y cada acordeón es
- *      template-parts/faq-lista.php (el mismo de Contacto).
+ *      template-parts/faq-lista.php.
  *   3. Contactemos → template-parts/contacto.php
  *
  * Las preguntas y sus categorías salen del módulo "Preguntas frecuentes"

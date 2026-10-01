@@ -16,8 +16,9 @@
  *   6. Calidad superior desde el origen → objetivos-sticky.php (aside sticky de Nosotros)
  *   7. Estándar Blue Angel (blue-angel.php, propio)
  *   8. Valida certificados originales (valida-certificados.php, propio)
- *   9. Casos reales (casos-reales.php)
- *  10. Contactemos → contacto.php
+ *   9. Preguntas frecuentes de la categoría Certificaciones (faq-seccion.php)
+ *  10. Casos reales (casos-reales.php)
+ *  11. Contactemos → contacto.php
  *
  * @package EseLatam
  */
@@ -119,6 +120,16 @@ foreach ((array) $ese_cmp('certpag_cal_items', []) as $ese_fila) {
 
     get_template_part('template-parts/blue-angel');
     get_template_part('template-parts/valida-certificados');
+
+    $ese_faq_enlace = ese_latam_enlace($ese_cmp('certpag_faq_enlace', null));
+    get_template_part('template-parts/faq-seccion', null, [
+        'categoria'   => ese_latam_faq_categoria_id($ese_cmp('certpag_faq_categoria', null), 'certificaciones'),
+        'kicker'      => (string) $ese_cmp('certpag_faq_kicker'),
+        'title'       => (string) $ese_cmp('certpag_faq_titulo'),
+        'link_label'  => $ese_faq_enlace['label'],
+        'link_href'   => $ese_faq_enlace['href'],
+        'link_target' => $ese_faq_enlace['target'],
+    ]);
 
     get_template_part('template-parts/casos-reales', null, ese_latam_args_casos($ese_id, 'certpag_casos'));
 
