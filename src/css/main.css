@@ -4199,6 +4199,7 @@
     /* text-transform: uppercase; */
     color: var(--color-white);
     max-width: 920px;
+    text-transform: uppercase;
   }
 
   .contacto__heading strong {
@@ -8958,10 +8959,25 @@
     background-color: var(--color-white);
   }
 
-  /* El breadcrumb de Nosotros es gris sobre negro; acá va sobre blanco y
-     el "hover a blanco" no tendría sentido. */
-  .sec-hero__crumb a:hover {
-    color: var(--color-primary);
+  /* Miga de pan sobre blanco: centrada como el titular, 12/ExtraBold en
+     neutral 500. El componente base está pensado para heros oscuros (tramo
+     actual en blanco, hover a blanco), así que acá todo vuelve al gris y el
+     hover va al azul de marca. */
+  .sec-hero__crumb {
+    justify-content: center;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    color: var(--color-neutral-500);
+  }
+
+  .sec-hero__crumb .crumbs__current {
+    color: var(--color-neutral-500);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .sec-hero__crumb a:hover {
+      color: var(--color-primary);
+    }
   }
 
   .sec-hero__header {
@@ -13098,6 +13114,210 @@
 
     .legal__indice-link {
       padding: 8px 12px;
+    }
+  }
+}
+
+/* =========================================================
+   PREGUNTAS FRECUENTES (page-preguntas-frecuentes.php)
+   Reutiliza el hero claro de Sectores (.sec-hero), el acordeón de Contacto
+   (.ctc-faq__*, template-parts/faq-lista.php) y la lógica del índice de las
+   legales (legal.ts, por data-legal*). Acá solo va la composición: índice
+   de categorías pegajoso a la izquierda y un bloque por categoría.
+   ========================================================= */
+@layer components {
+  .faq-page {
+    /* 120px del Figma, el mismo gutter del hero de Sectores. */
+    --sec-gutter: clamp(1.5rem, 6.25vw, 7.5rem);
+    background-color: var(--color-white);
+  }
+
+  /* ---------- Hero ---------- */
+  /* La miga de pan ya viene corregida del hero de Sectores (.sec-hero__crumb). */
+
+  /* H1 64/120, los dos tramos en azul 500; el resaltado solo cambia el peso. */
+  .faq-page .sec-hero__title {
+    font-size: clamp(2.5rem, 4.5vw, var(--text-h2));
+    line-height: 1.2;
+    color: var(--color-primary-500);
+  }
+
+  .faq-page .sec-hero__title .hl {
+    font-weight: 700;
+    color: var(--color-primary-500);
+  }
+
+  /* P 16/160 en neutral 600. */
+  .faq-page .sec-hero__desc {
+    max-width: 460px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--color-neutral-600);
+  }
+
+  /* Mismo piso móvil que el resto de los h1 de hero. */
+  @media (width < 48rem) {
+    .faq-page .sec-hero__title {
+      font-size: clamp(1.875rem, 9vw, 2.5rem);
+    }
+  }
+
+  /* 260 / 1340 del diseño, con ~200px de aire entre columnas. */
+  .faq {
+    display: grid;
+    grid-template-columns: minmax(0, 260fr) minmax(0, 1340fr);
+    column-gap: clamp(2rem, 8vw, 12.5rem);
+    row-gap: 2rem;
+    padding: clamp(2.5rem, 8vh, 5.5rem) var(--sec-gutter) clamp(4rem, 12vh, 8.75rem);
+  }
+
+  .faq__aside {
+    min-width: 0;
+  }
+
+  .faq__indice {
+    position: sticky;
+    top: calc(var(--hdr-h, 88px) + 2rem);
+  }
+
+  .faq__indice-title {
+    margin: 0 0 1rem;
+    padding-inline: 12px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-neutral-500);
+  }
+
+  .faq__indice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .faq__indice-link {
+    display: block;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--color-neutral-500);
+    transition: color 0.25s, background-color 0.25s;
+  }
+
+  .faq__indice-link.is-active {
+    background-color: var(--color-secondary-50);
+    font-weight: 600;
+    color: var(--color-secondary-600);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .faq__indice-link:not(.is-active):hover {
+      color: var(--color-text-dark);
+    }
+  }
+
+  .faq__cuerpo {
+    display: flex;
+    flex-direction: column;
+    gap: clamp(4rem, 12vh, 8.75rem);
+    min-width: 0;
+  }
+
+  /* El ancla queda bajo la cabecera fija al saltar desde el índice. */
+  .faq__bloque {
+    scroll-margin-top: calc(var(--hdr-h, 88px) + 2rem);
+  }
+
+  .faq__titulo {
+    margin: 0 0 clamp(1.25rem, 2.5vh, 1.75rem);
+    font-size: clamp(1.25rem, 1.5vw, 1.625rem);
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--color-text-dark);
+  }
+
+  /* El acordeón de Contacto en su versión compacta: preguntas a 16px y la
+     línea superior que abre cada bloque bajo su título. */
+  .faq__lista {
+    margin-top: 0;
+    border-top: 1px solid #e3e3e3;
+  }
+
+  .faq__lista .ctc-faq__q {
+    padding-block: 26px;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  .faq__lista .ctc-faq__a p {
+    max-width: 1100px;
+    padding-bottom: 28px;
+    font-size: 15px;
+  }
+
+  @media (width < 64rem) {
+    .faq {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* En móvil el índice sigue pegado bajo la cabecera, como en escritorio,
+       pero como chips que bajan de renglón. El sticky va en el <aside> y no
+       en el <nav>: el aside es el ítem de la grilla y su contenedor (.faq)
+       abarca todos los bloques; el nav solo mide lo que el aside. */
+    .faq__aside {
+      position: sticky;
+      /* La cabecera fija mide ~64px en móvil (10px de aire + 54px de
+         pastilla); --hdr-h vive en .site-header y no llega hasta acá. */
+      top: 72px;
+      z-index: 5;
+      align-self: start;
+      margin-inline: calc(var(--sec-gutter) * -1);
+      padding: 12px var(--sec-gutter);
+      background-color: var(--color-white);
+      box-shadow: 0 8px 16px -12px rgb(0 30 97 / 0.18);
+    }
+
+    .faq__indice {
+      position: static;
+    }
+
+    .faq__indice-title {
+      margin-bottom: 0.625rem;
+      padding-inline: 0;
+    }
+
+    .faq__indice-list {
+      flex-flow: row wrap;
+      gap: 8px;
+    }
+
+    .faq__indice-link {
+      border: 1px solid var(--color-neutral-100);
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-size: 13px;
+    }
+
+    .faq__indice-link.is-active {
+      border-color: var(--color-secondary-100);
+    }
+
+    /* Al saltar desde un chip, el título queda bajo la cabecera Y bajo la
+       barra de categorías (rótulo + hasta dos renglones de chips). */
+    .faq__bloque {
+      scroll-margin-top: 220px;
+    }
+
+    .faq__lista .ctc-faq__q {
+      padding-block: 20px;
+      font-size: 15px;
     }
   }
 }

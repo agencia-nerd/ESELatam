@@ -29,10 +29,10 @@ export function initSmoothScroll(): void {
 
   // Anclas internas con la misma inercia.
   //
-  // Lenis calcula el destino desde el borde del elemento y no mira
-  // `scroll-margin-top`, así que el título quedaba debajo de la cabecera
-  // fija. Se lee del propio elemento y se le pasa como offset: quien no lo
-  // declare se comporta igual que antes.
+  // Desde Lenis 1.3 el propio scrollTo() descuenta el `scroll-margin-top`
+  // del destino, así que no se le pasa offset: restarlo acá también lo
+  // aplicaba dos veces y el título caía el doble de abajo (en Preguntas
+  // frecuentes, por debajo de la línea que activa su enlace del índice).
   document.addEventListener('click', (event) => {
     const link = (event.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]');
     if (!link) return;
@@ -45,7 +45,6 @@ export function initSmoothScroll(): void {
 
     event.preventDefault();
 
-    const margen = parseFloat(getComputedStyle(target).scrollMarginTop);
-    lenis.scrollTo(target, { offset: Number.isFinite(margen) ? -margen : 0 });
+    lenis.scrollTo(target);
   });
 }

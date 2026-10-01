@@ -107,7 +107,8 @@ function bootstrap(): void {
     });
   }
 
-  // Páginas legales (page-legal.php): el índice que sigue al scroll.
+  // Índice que sigue al scroll: páginas legales (page-legal.php) y
+  // categorías de page-preguntas-frecuentes.php.
   const legal = document.querySelector<HTMLElement>('[data-legal]');
   if (legal) {
     void import('./modules/legal').then(({ initLegal }) => {
@@ -123,8 +124,16 @@ function bootstrap(): void {
     });
   }
 
-  // Página Contacto (page-contacto.php): acordeón de FAQ + envío del
-  // formulario sin recarga.
+  // Acordeones de preguntas frecuentes (template-parts/faq-lista.php): al
+  // pie de Contacto y uno por categoría en page-preguntas-frecuentes.php.
+  const faqLists = Array.from(document.querySelectorAll<HTMLElement>('[data-faq]'));
+  if (faqLists.length) {
+    void import('./modules/faq-acordeon').then(({ initFaqAcordeon }) => {
+      faqLists.forEach(initFaqAcordeon);
+    });
+  }
+
+  // Página Contacto (page-contacto.php): envío del formulario sin recarga.
   const contactoPage = document.querySelector<HTMLElement>('[data-contacto-page]');
   if (contactoPage) {
     void import('./modules/contacto-page').then(({ initContactoPage }) => {

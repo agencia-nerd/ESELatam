@@ -49,3 +49,5 @@ require_once ESE_LATAM_DIR . '/inc/pcf-legal.php';
 require_once ESE_LATAM_DIR . '/inc/paginas.php';
 require_once ESE_LATAM_DIR . '/inc/contacto.php';
 require_once ESE_LATAM_DIR . '/inc/pcf-contacto.php';
+require_once ESE_LATAM_DIR . '/inc/preguntas-frecuentes.php';
+require_once ESE_LATAM_DIR . '/inc/pcf-preguntas-frecuentes.php';

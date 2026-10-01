@@ -4,11 +4,9 @@
  * Dos comportamientos, ambos progresivos — la página funciona sin este
  * módulo, que solo agrega la capa de animación y el envío sin recarga:
  *
- *  1. Acordeón de preguntas frecuentes. El markup son `<details>` nativos:
- *     abrir/cerrar ya funciona solo. Acá se le suma la animación de altura
- *     (hay que retrasar el cierre real del `<details>` hasta que termine el
- *     tween, si no el navegador oculta el panel de golpe) y la regla de
- *     "una abierta a la vez".
+ *  1. Acordeón de preguntas frecuentes: ya no vive acá. Es el mismo de la
+ *     página "Preguntas frecuentes" y lo inicia main.ts para cualquier
+ *     `[data-faq]` (modules/faq-acordeon.ts).
  *
  *  2. Envío del formulario por fetch a admin-ajax (ver inc/contacto.php).
  *     Valida en el cliente lo mismo que valida el servidor —que es quien
@@ -21,76 +19,7 @@ import { gsap } from '../lib/gsap';
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function initContactoPage(root: HTMLElement): void {
-  initFaq(root);
   initForm(root);
-}
-
-/* ------------------------------------------------------------------ */
-/* Acordeón de FAQ                                                     */
-/* ------------------------------------------------------------------ */
-
-function initFaq(root: HTMLElement): void {
-  const list = root.querySelector<HTMLElement>('[data-ctc-faq]');
-  if (!list) return;
-
-  const items = Array.from(list.querySelectorAll<HTMLDetailsElement>('[data-ctc-faq-item]'));
-  if (!items.length) return;
-
-  const panelOf = (item: HTMLDetailsElement): HTMLElement | null =>
-    item.querySelector<HTMLElement>('[data-ctc-faq-panel]');
-
-  const open = (item: HTMLDetailsElement): void => {
-    const panel = panelOf(item);
-    item.open = true;
-    if (!panel || REDUCED) return;
-    gsap.fromTo(
-      panel,
-      { height: 0, autoAlpha: 0 },
-      { height: 'auto', autoAlpha: 1, duration: 0.5, ease: 'power3.out', overwrite: true }
-    );
-  };
-
-  const close = (item: HTMLDetailsElement): void => {
-    const panel = panelOf(item);
-    if (!panel || REDUCED) {
-      item.open = false;
-      return;
-    }
-    gsap.to(panel, {
-      height: 0,
-      autoAlpha: 0,
-      duration: 0.35,
-      ease: 'power2.inOut',
-      overwrite: true,
-      // El `<details>` sigue abierto durante el tween: recién al terminar se
-      // cierra de verdad y se limpian los estilos inline, para que la
-      // próxima apertura vuelva a medir la altura real del contenido.
-      onComplete: () => {
-        item.open = false;
-        gsap.set(panel, { clearProps: 'height,opacity,visibility' });
-      },
-    });
-  };
-
-  items.forEach((item) => {
-    const summary = item.querySelector<HTMLElement>('summary');
-    if (!summary) return;
-
-    summary.addEventListener('click', (event) => {
-      // El toggle nativo se hace acá a mano para poder animarlo.
-      event.preventDefault();
-
-      if (item.open) {
-        close(item);
-        return;
-      }
-
-      items.forEach((other) => {
-        if (other !== item && other.open) close(other);
-      });
-      open(item);
-    });
-  });
 }
 
 /* ------------------------------------------------------------------ */

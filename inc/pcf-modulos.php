@@ -160,15 +160,48 @@ add_action('acf/init', static function (): void {
         'faq',
         [
             $campo('wysiwyg', 'respuesta', __('Respuesta a la pregunta frecuente', 'ese-latam'), [
-                'instructions' => __('Texto que se despliega al abrir la pregunta en el acordeón de la página de Contacto. Un párrafo corto.', 'ese-latam'),
+                'instructions' => __('Texto que se despliega al abrir la pregunta en el acordeón, en la página Preguntas frecuentes y en la de Contacto. Un párrafo corto.', 'ese-latam'),
                 'tabs'         => 'visual',
                 'toolbar'      => 'basic',
                 'media_upload' => 0,
                 'required'     => 1,
             ]),
+            $campo('true_false', 'en_contacto', __('¿Mostrar también en la página de Contacto?', 'ese-latam'), [
+                'instructions'  => __('Encendido: la pregunta sale además en el acordeón al pie de la página de Contacto. Apagado: solo sale en la página Preguntas frecuentes.', 'ese-latam'),
+                'default_value' => 1,
+                'ui'            => 1,
+            ]),
         ],
-        __('El título de la entrada es la pregunta. Las preguntas se muestran en el acordeón de la página de Contacto; la primera sale abierta.', 'ese-latam')
+        __('El título de la entrada es la pregunta. En la página Preguntas frecuentes se agrupan por la categoría que marques en la columna derecha (una sola); sin categoría, no salen ahí. El campo «Orden» define el orden dentro de su categoría.', 'ese-latam')
     ));
+
+    /* -----------------------------------------------------------------
+     * Categoría de preguntas frecuentes (taxonomía)
+     * -------------------------------------------------------------- */
+    acf_add_local_field_group([
+        'key'      => 'group_faq_categoria',
+        'title'    => __('Bloque en la página Preguntas frecuentes', 'ese-latam'),
+        'location' => [[['param' => 'taxonomy', 'operator' => '==', 'value' => 'faq_categoria']]],
+        'menu_order'            => 0,
+        'position'              => 'normal',
+        'style'                 => 'default',
+        'label_placement'       => 'top',
+        'instruction_placement' => 'label',
+        'active'                => true,
+        'fields'                => [
+            $campo('text', 'titulo_bloque', __('Título del bloque de la categoría', 'ese-latam'), [
+                'instructions' => __('Encabeza el grupo de preguntas en la página, por ejemplo «Especificaciones de contenedores». El nombre de la categoría es el texto corto del índice de la izquierda. Hasta 60 caracteres. Vacío: el bloque usa el nombre de la categoría.', 'ese-latam'),
+                'maxlength'    => 60,
+                'wrapper'      => ['width' => '70'],
+            ]),
+            $campo('number', 'orden', __('Orden de la categoría en la página', 'ese-latam'), [
+                'instructions' => __('Posición del bloque y de su punto en el índice; el 1 va primero. Vacío: va después de las numeradas, por nombre.', 'ese-latam'),
+                'min'          => 1,
+                'step'         => 1,
+                'wrapper'      => ['width' => '30'],
+            ]),
+        ],
+    ]);
 
     /* -----------------------------------------------------------------
      * Coordenadas del país (taxonomía)

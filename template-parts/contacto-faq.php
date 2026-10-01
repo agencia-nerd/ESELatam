@@ -2,12 +2,12 @@
 /**
  * Página de Contacto — bloque 3: preguntas frecuentes (Figma 3948-9141).
  *
- * Acordeón nativo con <details>/<summary>: funciona sin JS (abrir/cerrar es
- * comportamiento del navegador) y contacto-page.ts solo le agrega la
- * animación de altura y el comportamiento de "una abierta a la vez".
+ * El acordeón es template-parts/faq-lista.php, el mismo de la página
+ * "Preguntas frecuentes".
  *
- * Las preguntas salen del módulo "Preguntas frecuentes"; el antetítulo y el
- * titular, de la página.
+ * Las preguntas salen del módulo "Preguntas frecuentes" (las que tienen
+ * encendido «¿Mostrar también en la página de Contacto?»); el antetítulo y
+ * el titular, de la página.
  *
  * @package EseLatam
  */
@@ -20,6 +20,11 @@ if (! defined('ABSPATH')) {
 $ese_faqs = [];
 
 foreach (ese_latam_modulo_entradas('faq') as $ese_pregunta) {
+    // Solo se excluyen las que tienen el interruptor apagado a propósito:
+    // las preguntas anteriores al campo no tienen valor y siguen saliendo.
+    if ('0' === (string) get_post_meta($ese_pregunta->ID, 'en_contacto', true)) {
+        continue;
+    }
     $ese_faqs[] = [
         'q' => get_the_title($ese_pregunta->ID),
         'a' => ese_latam_texto_rico((string) ese_latam_campo('respuesta', $ese_pregunta->ID, '')),
@@ -47,21 +52,5 @@ $ese_titulo = (string) ese_latam_campo('ctc_faq_titulo', $ese_id, '');
         <?php endif; ?>
     </header>
 
-    <div class="ctc-faq__list" data-ctc-faq>
-        <?php foreach ($ese_faqs as $ese_i => $ese_faq) : ?>
-            <details class="ctc-faq__item" data-ctc-faq-item <?php echo 0 === $ese_i ? 'open' : ''; ?>>
-                <summary class="ctc-faq__q">
-                    <span><?php echo esc_html($ese_faq['q']); ?></span>
-                    <span class="ctc-faq__icon" aria-hidden="true">
-                        <svg width="10" height="5" viewBox="0 0 10 5" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M5 5L0 0H10L5 5Z" fill="currentColor" />
-                        </svg>
-                    </span>
-                </summary>
-                <div class="ctc-faq__a" data-ctc-faq-panel>
-                    <p><?php echo $ese_faq['a']; ?></p>
-                </div>
-            </details>
-        <?php endforeach; ?>
-    </div>
+    <?php get_template_part('template-parts/faq-lista', null, ['faqs' => $ese_faqs]); ?>
 </section>

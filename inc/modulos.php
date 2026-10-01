@@ -142,6 +142,34 @@ add_action('init', static function (): void {
         'supports'      => ['title', 'page-attributes'],
         'show_in_rest'  => true,
     ]);
+
+    /* -----------------------------------------------------------------
+     * Categorías de preguntas frecuentes
+     *
+     * Agrupan las preguntas en la página "Preguntas frecuentes": cada
+     * categoría es un punto del índice lateral y un bloque del acordeón. El
+     * nombre del término es el texto corto del índice; el título largo del
+     * bloque y el orden van en sus campos (inc/pcf-modulos.php).
+     * -------------------------------------------------------------- */
+    register_taxonomy('faq_categoria', 'faq', [
+        'labels' => [
+            'name'          => __('Categorías', 'ese-latam'),
+            'singular_name' => __('Categoría', 'ese-latam'),
+            'menu_name'     => __('Categorías', 'ese-latam'),
+            'all_items'     => __('Todas las categorías', 'ese-latam'),
+            'add_new_item'  => __('Añadir categoría', 'ese-latam'),
+            'edit_item'     => __('Editar categoría', 'ese-latam'),
+            'search_items'  => __('Buscar categorías', 'ese-latam'),
+            'not_found'     => __('No hay categorías', 'ese-latam'),
+        ],
+        // Jerárquica solo por la interfaz: en el editor se marca con casillas
+        // en vez de escribir etiquetas a mano.
+        'hierarchical'      => true,
+        'public'            => false,
+        'show_ui'           => true,
+        'show_admin_column' => true,
+        'show_in_rest'      => true,
+    ]);
 });
 
 /**
