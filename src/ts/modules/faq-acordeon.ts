@@ -1,13 +1,13 @@
 /**
  * Acordeón de preguntas frecuentes (template-parts/faq-lista.php).
  *
- * Lo comparten la página de Contacto y la página "Preguntas frecuentes".
+ * Lo usa la página "Preguntas frecuentes", una lista por categoría.
  * El markup son `<details>` nativos: abrir/cerrar ya funciona solo. Acá se
  * le suma la animación de altura (hay que retrasar el cierre real del
  * `<details>` hasta que termine el tween, si no el navegador oculta el
  * panel de golpe) y la regla de "una abierta a la vez" dentro de cada
- * lista: en la página de preguntas cada categoría es una lista propia, así
- * que cada bloque conserva su pregunta abierta.
+ * lista: cada categoría es una lista propia, así que cada bloque conserva
+ * su pregunta abierta.
  */
 
 import { gsap } from '../lib/gsap';

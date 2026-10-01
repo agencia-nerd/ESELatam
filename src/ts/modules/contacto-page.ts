@@ -1,14 +1,10 @@
 /**
  * Página de Contacto (page-contacto.php, Figma 3941-8369).
  *
- * Dos comportamientos, ambos progresivos — la página funciona sin este
- * módulo, que solo agrega la capa de animación y el envío sin recarga:
+ * Comportamiento progresivo — la página funciona sin este módulo, que solo
+ * agrega el envío sin recarga:
  *
- *  1. Acordeón de preguntas frecuentes: ya no vive acá. Es el mismo de la
- *     página "Preguntas frecuentes" y lo inicia main.ts para cualquier
- *     `[data-faq]` (modules/faq-acordeon.ts).
- *
- *  2. Envío del formulario por fetch a admin-ajax (ver inc/contacto.php).
+ *  Envío del formulario por fetch a admin-ajax (ver inc/contacto.php).
  *     Valida en el cliente lo mismo que valida el servidor —que es quien
  *     manda—, marca los campos con error y pinta el estado en la tarjeta.
  *     Sin JS el `<form>` postea normal y vuelve con `?contacto=ok|error`.

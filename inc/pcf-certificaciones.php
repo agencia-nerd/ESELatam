@@ -315,6 +315,41 @@ add_action('acf/init', static function (): void {
                 ]),
             ],
 
+            /* ---------------- Preguntas frecuentes ---------------- */
+            [$tab('cert_faq', __('Preguntas frecuentes', 'ese-latam'))],
+            [
+                $campo('message', '', __('Dónde se editan estas preguntas', 'ese-latam'), [
+                    'key'      => 'field_certpag_faq_msg',
+                    'message'  => __('Las preguntas salen solas del módulo <strong>Preguntas frecuentes</strong>: se muestran todas las de la categoría elegida abajo, en el orden de su campo «Orden». Una pregunta nueva con esa categoría aparece aquí sin tocar esta página. Sin preguntas en la categoría, la sección no se muestra.', 'ese-latam'),
+                    'esc_html' => 0,
+                ]),
+                $campo('text', 'certpag_faq_kicker', __('Antetítulo de las preguntas frecuentes', 'ese-latam'), [
+                    'instructions' => __('Palabra o frase corta en mayúsculas, con una barra delante, encima del titular, sobre Casos reales. Hasta 30 caracteres. Vacío: no se muestra.', 'ese-latam'),
+                    'placeholder'  => __('Preguntas frecuentes', 'ese-latam'),
+                    'maxlength'    => 30,
+                    'wrapper'      => ['width' => '40'],
+                ]),
+                $campo('textarea', 'certpag_faq_titulo', __('Titular de las preguntas frecuentes', 'ese-latam'), [
+                    'instructions' => __('Frase grande sobre el acordeón de preguntas, justo antes de Casos reales.', 'ese-latam') . ' ' . ese_latam_ayuda_titulo() . ' ' . __('Vacío: no se muestra.', 'ese-latam'),
+                    'rows'         => 2,
+                    'placeholder'  => "Dudas sobre\n|certificaciones|",
+                    'wrapper'      => ['width' => '60'],
+                ]),
+                $campo('taxonomy', 'certpag_faq_categoria', __('Categoría de preguntas que se muestra', 'ese-latam'), [
+                    'instructions'  => __('Elige de qué categoría del módulo Preguntas frecuentes salen las preguntas. Vacía: se usa la categoría Certificaciones.', 'ese-latam'),
+                    'taxonomy'      => 'faq_categoria',
+                    'field_type'    => 'select',
+                    'allow_null'    => 1,
+                    'add_term'      => 0,
+                    'return_format' => 'id',
+                    'wrapper'       => ['width' => '50'],
+                ]),
+                $campo('link', 'certpag_faq_enlace', __('Enlace a todas las preguntas frecuentes', 'ese-latam'), [
+                    'instructions' => __('Enlace con flecha a la derecha del titular, normalmente a la página Preguntas frecuentes. Escribe el texto y la página. Vacío: la sección se muestra sin enlace.', 'ese-latam'),
+                    'wrapper'      => ['width' => '50'],
+                ]),
+            ],
+
             /* ---------------- Casos ---------------- */
             [$tab('cert_casos', __('Casos reales', 'ese-latam'))],
             $encabezado(

@@ -124,8 +124,8 @@ function bootstrap(): void {
     });
   }
 
-  // Acordeones de preguntas frecuentes (template-parts/faq-lista.php): al
-  // pie de Contacto y uno por categoría en page-preguntas-frecuentes.php.
+  // Acordeones de preguntas frecuentes (template-parts/faq-lista.php): uno
+  // por categoría en page-preguntas-frecuentes.php.
   const faqLists = Array.from(document.querySelectorAll<HTMLElement>('[data-faq]'));
   if (faqLists.length) {
     void import('./modules/faq-acordeon').then(({ initFaqAcordeon }) => {

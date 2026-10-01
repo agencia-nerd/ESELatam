@@ -8824,22 +8824,10 @@
     }
   }
 
-  /* ---------- 3. Preguntas frecuentes ---------- */
-
-  .ctc-faq {
-    padding: clamp(3.5rem, 7.5vh, 4.5rem) var(--ctc-gutter-wide) clamp(4rem, 10vh, 7.5rem);
-    background-color: var(--color-white);
-  }
-
-  .ctc-faq__header {
-    display: flex;
-    flex-direction: column;
-    gap: 1.625rem;
-  }
-
-  .ctc-faq__list {
-    margin-top: clamp(2.5rem, 5.5vh, 4rem);
-  }
+  /* ---------- Acordeón de preguntas frecuentes ----------
+     Nació en Contacto; hoy lo usa solo page-preguntas-frecuentes.php
+     (template-parts/faq-lista.php). La composición de esa página y su
+     versión compacta están en el bloque PREGUNTAS FRECUENTES. */
 
   .ctc-faq__item {
     border-bottom: 1px solid #e3e3e3;
@@ -8914,10 +8902,6 @@
   }
 
   @media (width < 64rem) {
-    .ctc-faq {
-      padding-inline: var(--ctc-gutter);
-    }
-
     .ctc-faq__q {
       font-size: 16px;
       line-height: 26px;
@@ -13242,10 +13226,9 @@
     color: var(--color-text-dark);
   }
 
-  /* El acordeón de Contacto en su versión compacta: preguntas a 16px y la
+  /* El acordeón (nacido en Contacto) en su versión compacta: preguntas a 16px y la
      línea superior que abre cada bloque bajo su título. */
   .faq__lista {
-    margin-top: 0;
     border-top: 1px solid #e3e3e3;
   }
 
@@ -13319,6 +13302,25 @@
       padding-block: 20px;
       font-size: 15px;
     }
+  }
+}
+
+/* =========================================================
+   PREGUNTAS DE UNA CATEGORÍA DENTRO DE OTRA PÁGINA
+   (template-parts/faq-seccion.php; hoy en Certificaciones, sobre Casos
+   reales). El encabezado reusa .casos__header/.casos__heading, así que
+   antetítulo, titular y enlace quedan alineados con la sección de arriba.
+   ========================================================= */
+@layer components {
+  .faq-sec {
+    /* Mismo gutter y aire que Casos reales; fuera de .nosotros cae a 120px.
+       Abajo va sin aire: lo pone el padding superior de Casos reales. */
+    padding: clamp(4rem, 10vh, 7.5rem) var(--nos-gutter, clamp(1.5rem, 6.25vw, 7.5rem)) 0;
+    background-color: var(--color-white);
+  }
+
+  .faq-sec .ctc-faq__list {
+    border-top: 1px solid #e3e3e3;
   }
 }
 
