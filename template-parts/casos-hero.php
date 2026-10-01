@@ -30,7 +30,7 @@ $ese_hero = wp_parse_args($args ?? [], [
 ]);
 ?>
 
-<section class="nos-hero nos-hero--interna cx-hero" data-nos-hero>
+<section class="nos-hero nos-hero--interna ccs cx-hero" data-nos-hero>
     <?php if ('' !== $ese_hero['bg']) : ?>
         <div class="nos-hero__bg" aria-hidden="true" data-nos-hero-bg>
             <img src="<?php echo esc_url($ese_hero['bg']); ?>" alt="" decoding="async" fetchpriority="high">
