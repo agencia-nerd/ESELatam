@@ -18,6 +18,10 @@ export function initSmoothScroll(): void {
   const lenis = new Lenis({
     duration: 1.35,
     easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // easeOutExpo
+    // Un contenedor con overflow (p. ej. el riel de países de Distribuidores)
+    // recibe la rueda solo mientras pueda scrollear en esa dirección. Con
+    // data-lenis-prevent la página se trababa aunque no hubiera nada que mover.
+    allowNestedScroll: true,
   });
 
   lenis.on('scroll', ScrollTrigger.update);

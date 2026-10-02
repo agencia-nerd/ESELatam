@@ -1,7 +1,8 @@
 <?php
 /**
  * Front page — Hero "Estado A" (Figma node 4271-1457) con animación de scroll:
- * video scrubbed, isla flotante que aparece y nubes que cubren la transición.
+ * escena en capas (fondo, isla flotante y hojas animadas) y nubes que cubren
+ * la transición.
  *
  * @package EseLatam
  */
@@ -13,8 +14,6 @@ get_header();
 // (los campos se registran en inc/pcf-home.php). Cada campo vacío cae al
 // texto del diseño, así que la home se ve igual sin tocar nada.
 $ese_hero = [
-    'video'  => ese_latam_img_url(ese_latam_home('hero_video')),
-    'poster' => ese_latam_img_url(ese_latam_home('hero_video_poster')),
     'lede'   => trim((string) ese_latam_home('hero_lede', '')),
     'stat'   => trim((string) ese_latam_home('hero_card_stat', '')),
     'tag'    => trim((string) ese_latam_home('hero_card_tag', '')),
@@ -28,31 +27,42 @@ $ese_hero_cta  = ese_latam_enlace(ese_latam_home('hero_cta'));
 // tamaños que antes vivían en el theme.
 $ese_hero_isla = (int) ese_latam_home('hero_isla', 0);
 
+// Fondo del hero: la primera imagen que se pinta. Mismo origen que el preload del <head>
+// (ver ese_latam_hero_fondo() en inc/template-tags.php).
+$ese_hero_fondo = ese_latam_hero_fondo();
+
+// Hojas de las esquinas: decorado fijo del diseño (no editable). Medidas
+// reales del archivo para que el <img> reserve su espacio.
+$ese_hero_hojas = [
+    'tl' => ['hoja-arriba-izq.webp', 333, 231],
+    'bl' => ['hoja-abajo-izq.webp', 789, 719],
+    'br' => ['hoja-abajo-der.webp', 900, 835],
+];
+
 // El alto de la isla depende de su proporción, así que se la pasamos al CSS
 // en vez de dejarla escrita a ojo: así una imagen más cuadrada se achica sola
 // y no termina contra la cabecera (ver .hero__island en main.css).
-$ese_isla_estilo = '';
-$ese_isla_sizes  = '';
-if ($ese_hero_isla > 0) {
-    $ese_isla_meta  = wp_get_attachment_metadata($ese_hero_isla);
-    $ese_isla_w     = (int) ($ese_isla_meta['width'] ?? 0);
-    $ese_isla_h     = (int) ($ese_isla_meta['height'] ?? 0);
-    $ese_isla_ratio = $ese_isla_w > 0 && $ese_isla_h > 0 ? round($ese_isla_w / $ese_isla_h, 4) : 1.7778;
-    $ese_isla_ancho = (int) ese_latam_home('hero_isla_ancho', 0);
-    $ese_isla_ancho = $ese_isla_ancho > 0 ? $ese_isla_ancho : 1720;
+// Sin isla cargada en el campo se usa la del diseño que trae el theme
+// (recortada al dibujo, en dos anchos).
+$ese_isla_meta  = $ese_hero_isla > 0 ? wp_get_attachment_metadata($ese_hero_isla) : ['width' => 1400, 'height' => 1424];
+$ese_isla_w     = (int) ($ese_isla_meta['width'] ?? 0);
+$ese_isla_h     = (int) ($ese_isla_meta['height'] ?? 0);
+$ese_isla_ratio = $ese_isla_w > 0 && $ese_isla_h > 0 ? round($ese_isla_w / $ese_isla_h, 4) : 1.7778;
+$ese_isla_ancho = (int) ese_latam_home('hero_isla_ancho', 0);
+$ese_isla_ancho = $ese_isla_ancho > 0 ? $ese_isla_ancho : 1720;
 
-    $ese_isla_estilo = '--island-ratio:' . $ese_isla_ratio . ';--island-max:' . $ese_isla_ancho . 'px;';
+$ese_isla_estilo = '--island-ratio:' . $ese_isla_ratio . ';--island-max:' . $ese_isla_ancho . 'px;';
 
-    // `sizes` es la pista que usa el navegador para elegir del srcset, así que
-    // tiene que decir lo mismo que el CSS. No admite var(), de modo que los
-    // tres topes se calculan acá con los números reales (80svh es
-    // --island-alto-max en main.css).
-    $ese_isla_sizes = sprintf(
-        '(max-width: 47.9375rem) min(120vw, 640px), min(92vw, %dpx, %ssvh)',
-        $ese_isla_ancho,
-        round(80 * $ese_isla_ratio, 2)
-    );
-}
+// `sizes` es la pista que usa el navegador para elegir del srcset, así que
+// tiene que decir lo mismo que el CSS. No admite var(), de modo que los
+// tres topes se calculan acá con los números reales (74svh es
+// --island-alto-max en main.css; 40svh, su tope en mobile).
+$ese_isla_sizes = sprintf(
+    '(max-width: 63.9375rem) min(88vw, 560px, %ssvh), min(44vw, %dpx, %ssvh)',
+    round(40 * $ese_isla_ratio, 2),
+    $ese_isla_ancho,
+    round(74 * $ese_isla_ratio, 2)
+);
 $ese_hero_card = '' !== $ese_hero['stat'] || '' !== $ese_hero['tag'] || '' !== $ese_hero['desc'];
 
 // El titular se anima línea por línea (hero-scroll.ts busca cada
@@ -68,31 +78,49 @@ $ese_hero_hay = [] !== $ese_hero_lineas || '' !== $ese_hero['lede'] || $ese_hero
 
 <?php if ($ese_hero_hay) : ?>
 <section class="hero" data-hero>
-    <?php if ('' !== $ese_hero['video']) : ?>
-        <video class="hero__video" data-hero-video
-            src="<?php echo esc_url($ese_hero['video']); ?>"
-            <?php echo '' !== $ese_hero['poster'] ? 'poster="' . esc_url($ese_hero['poster']) . '"' : ''; ?> muted playsinline
-            preload="none" aria-hidden="true" tabindex="-1"></video>
-    <?php endif; ?>
+    <?php // Visible desde el primer paint: hero-scroll.ts solo le
+    // anima la escala, nunca la opacidad. ?>
+    <img class="hero__bg" data-hero-bg
+        src="<?php echo esc_url($ese_hero_fondo['src']); ?>"
+        <?php if ('' !== $ese_hero_fondo['srcset']) : ?>srcset="<?php echo esc_attr($ese_hero_fondo['srcset']); ?>" sizes="100vw"<?php endif; ?>
+        width="<?php echo (int) $ese_hero_fondo['width']; ?>" height="<?php echo (int) $ese_hero_fondo['height']; ?>"
+        alt="" fetchpriority="high" decoding="async">
 
     <div class="hero__shade" aria-hidden="true"></div>
 
-    <?php if ($ese_hero_isla > 0) : ?>
-        <?php // El srcset lo arma WordPress con los tamaños que generó al
-        // subir la imagen; `sizes` sí es nuestro, porque la isla no ocupa
-        // el ancho del contenedor sino el que le da .hero__island. ?>
-        <div class="hero__island" data-hero-island aria-hidden="true"
-            <?php echo '' !== $ese_isla_estilo ? 'style="' . esc_attr($ese_isla_estilo) . '"' : ''; ?>>
+    <?php // El srcset lo arma WordPress con los tamaños que generó al
+    // subir la imagen; `sizes` sí es nuestro, porque la isla no ocupa
+    // el ancho del contenedor sino el que le da .hero__island. Sin
+    // fetchpriority alto: el fondo, que se precarga, va primero. ?>
+    <div class="hero__island" data-hero-island aria-hidden="true"
+        <?php echo '' !== $ese_isla_estilo ? 'style="' . esc_attr($ese_isla_estilo) . '"' : ''; ?>>
+        <?php if ($ese_hero_isla > 0) : ?>
             <?php
             echo wp_get_attachment_image($ese_hero_isla, 'full', false, [
                 'alt'           => '',
                 'sizes'         => $ese_isla_sizes,
-                'fetchpriority' => 'high',
+                // Explícito: si no, WordPress le pone `high` por ser la primera
+                // imagen grande y le compite al fondo.
+                'fetchpriority' => 'auto',
                 'decoding'      => 'async',
             ]);
             ?>
+        <?php else : ?>
+            <img src="<?php echo esc_url(ese_latam_asset('hero/hero-isla-1400.webp')); ?>"
+                srcset="<?php echo esc_url(ese_latam_asset('hero/hero-isla-800.webp')); ?> 800w, <?php echo esc_url(ese_latam_asset('hero/hero-isla-1400.webp')); ?> 1400w"
+                sizes="<?php echo esc_attr($ese_isla_sizes); ?>" width="1400" height="1424" alt="" decoding="async">
+        <?php endif; ?>
+    </div>
+
+    <?php // Dos capas por hoja (mismo patrón que .productos__leaves-wrap): el
+    // wrapper recibe la entrada y el parallax de scroll, el <img> el vaivén
+    // continuo — hero-scroll.ts anima cada uno por separado. ?>
+    <?php foreach ($ese_hero_hojas as $ese_hoja_pos => [$ese_hoja_file, $ese_hoja_w, $ese_hoja_h]) : ?>
+        <div class="hero__leaf hero__leaf--<?php echo esc_attr($ese_hoja_pos); ?>" data-hero-leaf="<?php echo esc_attr($ese_hoja_pos); ?>" aria-hidden="true">
+            <img src="<?php echo esc_url(ese_latam_asset('hero/' . $ese_hoja_file)); ?>"
+                width="<?php echo (int) $ese_hoja_w; ?>" height="<?php echo (int) $ese_hoja_h; ?>" alt="" decoding="async">
         </div>
-    <?php endif; ?>
+    <?php endforeach; ?>
 
     <div class="hero__content">
         <div class="hero__title-wrap" data-hero-title-wrap>
@@ -116,9 +144,12 @@ $ese_hero_hay = [] !== $ese_hero_lineas || '' !== $ese_hero['lede'] || $ese_hero
                 // — este es el que realmente queda en el layout, justo
                 // arriba del lede. En desktop no se muestra (display:none) y
                 // .hero__title de arriba sigue siendo el único titular.
+                // Es solo visual (aria-hidden): el único <h1> es el de arriba,
+                // que en mobile queda oculto a la vista pero sigue presente
+                // para lectores de pantalla y buscadores.
                 ?>
                 <?php if ([] !== $ese_hero_lineas) : ?>
-                    <p class="hero__title hero__title-settled" data-hero-reveal>
+                    <p class="hero__title hero__title-settled" data-hero-reveal aria-hidden="true">
                         <?php echo ese_latam_titulo(implode(' ', $ese_hero_lineas)); ?>
                     </p>
                 <?php endif; ?>
@@ -569,7 +600,7 @@ $ese_productos_cta = ese_latam_enlace(ese_latam_home('productos_cta'));
 <?php
 // Sección "Distribuidores" (Figma node 3323-55) — globo 3D interactivo
 // (Three.js + GSAP, ver globe-scene.ts) con lista de países a la derecha:
-// al hacer clic en un país, el globo gira y hace zoom hasta señalarlo.
+// al elegir un país, el planeta gira hasta él, lo ilumina y lo señala.
 //
 // Los datos viven en inc/distribuidores.php (compartidos con la página
 // "Encuentra un distribuidor"): solo Perú y México traen contenido real.
@@ -585,116 +616,151 @@ $ese_dst_cta = ese_latam_enlace(ese_latam_home('distribuidores_cta'));
 ?>
 <?php // El globo y el riel viven de la lista de países: sin ninguno, no hay sección. ?>
 <?php if ([] !== $ese_distribuidores) : ?>
-<section id="distribuidores" class="distribuidores relative z-10" data-globe>
-    <?php // El globo es el fondo de la sección: ocupa todo y el resto flota encima. ?>
-    <div class="distribuidores__globe" data-lenis-prevent aria-hidden="true">
-        <?php
-        // Los anillos van ADENTRO del globo, no como hermanos de la sección:
-        // así heredan su centro solos. Como hermanos tenían sus propias
-        // coordenadas (56%/48% de la sección) y en mobile el globo pasa a ser
-        // un elemento en flujo dentro de la grilla, con lo cual los anillos
-        // quedaban anclados en cualquier otro lado.
-        ?>
-        <div class="distribuidores__rings" aria-hidden="true">
-            <span></span><span></span>
+<section id="distribuidores" class="distribuidores relative z-10" data-globe
+    <?php echo '' !== $ese_dst_copy['titulo'] ? 'aria-labelledby="distribuidores-titulo"' : ''; ?>>
+    <?php
+    // El planeta es el fondo de la sección: ocupa las tres columnas de la
+    // grilla y el resto flota encima. Órbitas, partículas y halo se dibujan
+    // dentro del mismo canvas (globe-scene.ts), así que no hay capas de
+    // decoración aparte. Los dos tooltips los posiciona el JS sobre la
+    // proyección 3D del país: el de hover sigue al cursor y el del país
+    // elegido queda clavado sobre él.
+    ?>
+    <?php // Sin data-lenis-prevent: el stage cubre TODA la sección y el globo
+    // no usa la rueda, así que excluirlo de Lenis solo trababa el scroll de
+    // la página al pasar el mouse por encima. ?>
+    <div class="distribuidores__stage" aria-hidden="true">
+        <div class="distribuidores__canvas" data-globe-canvas
+            data-earth-map="<?php echo esc_url(ESE_LATAM_URI . '/assets/imgs/distribuidores/earth-diffuse.webp'); ?>"
+            data-topology="<?php echo esc_url(ESE_LATAM_URI . '/assets/data/countries-110m.json'); ?>"></div>
+        <div class="distribuidores__hover-tip" data-globe-hover-tip></div>
+        <div class="distribuidores__sel-tip" data-globe-sel-tip>
+            <div class="distribuidores__sel-tip-inner">
+                <div class="distribuidores__sel-tip-label" data-globe-sel-label></div>
+                <div class="distribuidores__sel-tip-arrow"></div>
+            </div>
         </div>
-
-        <div data-globe-canvas
-            data-earth-map="<?php echo esc_url(ESE_LATAM_URI . '/assets/imgs/distribuidores/earth-cartoon.webp'); ?>"
-            data-earth-specular="<?php echo esc_url(ESE_LATAM_URI . '/assets/imgs/distribuidores/earth-specular.webp'); ?>"
-            data-earth-normal="<?php echo esc_url(ESE_LATAM_URI . '/assets/imgs/distribuidores/earth-normal.webp'); ?>">
+        <div class="distribuidores__loader" data-globe-loader
+            data-error="<?php esc_attr_e('No se pudo cargar el planeta', 'ese-latam'); ?>">
+            <?php esc_html_e('Cargando planeta…', 'ese-latam'); ?>
         </div>
     </div>
 
-    <?php // La entrada de toda la sección (anillos, globo, textos, riel y tarjeta)
+    <?php // La entrada de toda la sección (globo, textos, riel, tarjeta y enlace)
     // la coreografía distribuidores-intro.ts en un solo timeline — por eso
     // estos bloques NO llevan data-reveal como el resto de la home. ?>
-    <div class="distribuidores__intro">
+    <header class="distribuidores__intro">
         <?php if ('' !== $ese_dst_copy['kicker']) : ?>
-            <p class="type-kicker text-white/90">/ <?php echo esc_html($ese_dst_copy['kicker']); ?></p>
+            <p class="distribuidores__eyebrow">/ <?php echo esc_html($ese_dst_copy['kicker']); ?></p>
         <?php endif; ?>
         <?php if ('' !== $ese_dst_copy['titulo']) : ?>
-            <h2 class="distribuidores__title">
+            <h2 class="distribuidores__title" id="distribuidores-titulo">
                 <?php echo ese_latam_titulo($ese_dst_copy['titulo']); ?>
             </h2>
         <?php endif; ?>
         <?php if ('' !== $ese_dst_copy['desc']) : ?>
             <p class="distribuidores__desc"><?php echo esc_html($ese_dst_copy['desc']); ?></p>
         <?php endif; ?>
-    </div>
+    </header>
 
-    <?php // Riel de países: los 10 visibles a la vez, sin scroll anidado. ?>
-    <div class="distribuidores__rail">
-        <p class="distribuidores__rail-head">
-            <span class="distribuidores__rail-count"><?php echo count($ese_distribuidores); ?></span>
-            <?php esc_html_e('países conectados', 'ese-latam'); ?>
-        </p>
+    <div class="distribuidores__picker">
+        <?php // Riel de países (desktop). ?>
+        <?php // Con muchos países el riel scrollea: Lenis (allowNestedScroll en
+        // smooth-scroll.ts) le cede la rueda solo cuando de verdad tiene
+        // recorrido; si no, la rueda sigue moviendo la página. ?>
+        <div class="distribuidores__rail">
+            <p class="distribuidores__total">
+                <span class="distribuidores__rail-count"><?php echo count($ese_distribuidores); ?></span>
+                <span class="distribuidores__total-label"><?php esc_html_e('Países conectados', 'ese-latam'); ?></span>
+            </p>
 
-        <?php
-        // Mobile: el mismo set de países en un <select> nativo. El riel de 13
-        // pastillas envolvía en 9 filas irregulares y ocupaba ~500px de alto,
-        // así que el globo y el control nunca entraban juntos en pantalla.
-        // Va en el marcado (no armado por JS) para que exista aunque el JS
-        // todavía no haya corrido; CSS decide cuál de los dos se ve. El picker
-        // del sistema no se puede estilar, y está bien: es el que el usuario
-        // ya conoce en su teléfono.
-        ?>
-        <div class="distribuidores__select">
-            <label class="sr-only"
-                for="distribuidores-pais"><?php esc_html_e('Elegir país', 'ese-latam'); ?></label>
-            <select id="distribuidores-pais" data-country-select>
+            <div class="distribuidores__rail-items" data-country-list role="tablist"
+                aria-label="<?php esc_attr_e('Países con distribuidor', 'ese-latam'); ?>">
                 <?php foreach ($ese_distribuidores as $i => $pais): ?>
-                    <option value="<?php echo esc_attr($pais['slug']); ?>" <?php selected(0, $i); ?>>
-                        <?php echo esc_html($pais['name']); ?>
-                    </option>
+                    <button type="button" class="country-pill<?php echo 0 === $i ? ' is-active' : ''; ?>" role="tab"
+                        aria-selected="<?php echo 0 === $i ? 'true' : 'false'; ?>"
+                        aria-controls="distribuidor-<?php echo esc_attr($pais['slug']); ?>" data-country
+                        data-country-slug="<?php echo esc_attr($pais['slug']); ?>"
+                        data-lat="<?php echo esc_attr($pais['lat']); ?>" data-lng="<?php echo esc_attr($pais['lng']); ?>"
+                        data-iso="<?php echo esc_attr($pais['iso']); ?>">
+                        <span class="country-pill__dot" aria-hidden="true"></span>
+                        <span class="country-pill__name"><?php echo esc_html($pais['name']); ?></span>
+                        <span class="country-pill__count"><?php echo count($pais['items']); ?></span>
+                    </button>
                 <?php endforeach; ?>
-            </select>
-            <span class="distribuidores__select-icon" aria-hidden="true">
-                <svg width="17" height="17" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 12L4 7H14L9 12Z" fill="currentColor" />
-                </svg>
-            </span>
+            </div>
         </div>
 
-        <div class="distribuidores__rail-items" data-country-list role="tablist"
-            aria-label="<?php esc_attr_e('Países con distribuidor', 'ese-latam'); ?>">
-            <?php foreach ($ese_distribuidores as $i => $pais): ?>
-                <button type="button" class="country-pill<?php echo 0 === $i ? ' is-active' : ''; ?>" role="tab"
-                    aria-selected="<?php echo 0 === $i ? 'true' : 'false'; ?>"
-                    aria-controls="distribuidor-<?php echo esc_attr($pais['slug']); ?>" data-country
-                    data-country-slug="<?php echo esc_attr($pais['slug']); ?>"
-                    data-lat="<?php echo esc_attr($pais['lat']); ?>" data-lng="<?php echo esc_attr($pais['lng']); ?>">
-                    <span class="country-pill__dot" aria-hidden="true"></span>
-                    <span class="country-pill__name"><?php echo esc_html($pais['name']); ?></span>
-                    <span class="country-pill__count"><?php echo count($pais['items']); ?></span>
-                </button>
-            <?php endforeach; ?>
+        <?php
+        // Mobile y tablet: el mismo set de países en un <select> nativo — el
+        // riel envolvía en filas irregulares y empujaba el globo fuera de
+        // pantalla. Va en el marcado (no armado por JS) para que exista
+        // aunque el JS todavía no haya corrido; CSS decide cuál se ve.
+        ?>
+        <div class="distribuidores__mobile">
+            <p class="distribuidores__total">
+                <span class="distribuidores__rail-count"><?php echo count($ese_distribuidores); ?></span>
+                <span class="distribuidores__total-label"><?php esc_html_e('Países conectados', 'ese-latam'); ?></span>
+            </p>
+            <div class="distribuidores__select">
+                <label class="sr-only"
+                    for="distribuidores-pais"><?php esc_html_e('Elegir país', 'ese-latam'); ?></label>
+                <span class="distribuidores__select-dot" aria-hidden="true"></span>
+                <select id="distribuidores-pais" data-country-select>
+                    <?php foreach ($ese_distribuidores as $i => $pais): ?>
+                        <option value="<?php echo esc_attr($pais['slug']); ?>" <?php selected(0, $i); ?>>
+                            <?php echo esc_html($pais['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <svg class="distribuidores__select-chev" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+                    aria-hidden="true">
+                    <path d="M6 9l6 6 6-6" />
+                </svg>
+            </div>
         </div>
     </div>
 
     <?php // Tarjeta flotante: los paneles se apilan en la misma celda de grilla,
     // así la tarjeta toma el alto del más largo y no salta al cambiar de país. ?>
     <div class="distribuidores__panel">
-        <div class="distribuidores__panel-stack" data-country-panels>
+        <div class="distribuidores__panel-stack" data-country-panels aria-live="polite">
             <?php foreach ($ese_distribuidores as $i => $pais): ?>
                 <article class="country-panel<?php echo 0 === $i ? ' is-active' : ''; ?>"
                     id="distribuidor-<?php echo esc_attr($pais['slug']); ?>"
                     data-country-panel="<?php echo esc_attr($pais['slug']); ?>" role="tabpanel">
-                    <p class="country-panel__kicker"><?php esc_html_e('Distribuidores en', 'ese-latam'); ?></p>
-                    <h3 class="country-panel__name"><?php echo esc_html($pais['name']); ?></h3>
+                    <div class="country-panel__head">
+                        <p class="country-panel__kicker"><?php esc_html_e('Distribuidores en', 'ese-latam'); ?></p>
+                        <h3 class="country-panel__name"><?php echo esc_html($pais['name']); ?></h3>
+                    </div>
 
                     <?php if ([] !== $pais['items']) : ?>
                     <ul class="country-panel__list">
-                        <?php foreach ($pais['items'] as $item): ?>
-                            <li class="country-panel__item">
-                                <span class="country-panel__avatar"
-                                    aria-hidden="true"><?php echo esc_html(mb_substr((string) ($item['name'] ?? ''), 0, 1)); ?></span>
-                                <span class="country-panel__text">
-                                    <strong><?php echo esc_html($item['name'] ?? ''); ?></strong>
-                                    <?php if ('' !== (string) ($item['address'] ?? '')) : ?>
-                                        <span><?php echo esc_html($item['address']); ?></span>
+                        <?php foreach ($pais['items'] as $n => $item):
+                            $ese_item_web  = (string) ($item['web'] ?? '');
+                            $ese_item_text = (string) ($item['address'] ?? $item['city'] ?? '');
+                            $ese_item_tag  = '' !== $ese_item_web ? 'a' : 'div';
+                            ?>
+                            <li>
+                                <<?php echo $ese_item_tag; ?> class="country-panel__item"
+                                    <?php if ('' !== $ese_item_web) : ?>href="<?php echo esc_url($ese_item_web); ?>" target="_blank" rel="noopener"<?php endif; ?>>
+                                    <span class="country-panel__num" aria-hidden="true"><?php echo (int) $n + 1; ?></span>
+                                    <span class="country-panel__text">
+                                        <strong><?php echo esc_html($item['name'] ?? ''); ?></strong>
+                                        <?php if ('' !== $ese_item_text) : ?>
+                                            <span><?php echo esc_html($ese_item_text); ?></span>
+                                        <?php endif; ?>
+                                    </span>
+                                    <?php if ('' !== $ese_item_web) : ?>
+                                        <svg class="country-panel__arrow" width="14" height="14" viewBox="0 0 24 24"
+                                            fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"
+                                            stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M7 17L17 7" />
+                                            <path d="M8 7h9v9" />
+                                        </svg>
                                     <?php endif; ?>
-                                </span>
+                                </<?php echo $ese_item_tag; ?>>
                             </li>
                         <?php endforeach; ?>
                     </ul>
@@ -702,20 +768,25 @@ $ese_dst_cta = ese_latam_enlace(ese_latam_home('distribuidores_cta'));
                 </article>
             <?php endforeach; ?>
         </div>
+    </div>
 
-        <?php if ('' !== $ese_dst_cta['label']) : ?>
+    <?php if ('' !== $ese_dst_cta['label']) : ?>
+    <div class="distribuidores__cta-wrap">
         <a href="<?php echo esc_url($ese_dst_cta['href']); ?>" class="distribuidores__link"<?php echo ese_latam_target_attr($ese_dst_cta['target']); ?>>
-            <span class="distribuidores__link-text"><?php echo esc_html($ese_dst_cta['label']); ?></span>
+            <span class="distribuidores__link-text">
+                <span class="distribuidores__link-label"><?php echo esc_html($ese_dst_cta['label']); ?></span>
+                <span class="distribuidores__link-line" aria-hidden="true"></span>
+            </span>
             <span class="distribuidores__link-icon" aria-hidden="true">
-                <svg width="16" height="13" viewBox="0 0 16 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        d="M15.7165 7.15792L9.95748 12.7276C9.77717 12.902 9.53261 13 9.2776 13C9.02259 13 8.77803 12.902 8.59772 12.7276C8.4174 12.5532 8.3161 12.3167 8.3161 12.0701C8.3161 11.8235 8.4174 11.587 8.59772 11.4126L12.7178 7.42945H0.959834C0.70527 7.42945 0.461133 7.33164 0.281129 7.15756C0.101125 6.98347 0 6.74736 0 6.50116C0 6.25496 0.101125 6.01885 0.281129 5.84476C0.461133 5.67067 0.70527 5.57287 0.959834 5.57287H12.7178L8.59932 1.58743C8.419 1.41304 8.3177 1.17652 8.3177 0.929896C8.3177 0.683272 8.419 0.44675 8.59932 0.27236C8.77963 0.0979708 9.02419 0 9.2792 0C9.5342 0 9.77877 0.0979708 9.95908 0.27236L15.7181 5.84208C15.8076 5.92843 15.8786 6.03104 15.9269 6.144C15.9753 6.25696 16.0001 6.37805 16 6.50032C15.9998 6.62259 15.9747 6.74362 15.9261 6.85647C15.8774 6.96933 15.8062 7.07177 15.7165 7.15792Z"
-                        fill="currentColor" />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14" />
+                    <path d="M13 6l6 6-6 6" />
                 </svg>
             </span>
         </a>
-        <?php endif; ?>
     </div>
+    <?php endif; ?>
 </section>
 <?php endif; ?>
 

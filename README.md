@@ -47,15 +47,14 @@ ese-latam/
 │   └── enqueue.php        # Integración con manifest de Vite
 ├── assets/
 │   ├── icons/             # SVGs exportados del Figma (CTA, chevron, search)
-│   ├── imgs/              # Logo, isla, nubes, fotos de sectores
-│   └── video/             # Video del hero (codificado all-intra, ver abajo)
+│   └── imgs/              # Logo, nubes, fotos de sectores; hero/ = capas del hero de la home
 ├── src/
 │   ├── css/main.css       # Tailwind v4 + tokens + componentes (hero, nav, slider…)
 │   └── ts/
 │       ├── main.ts        # Entry point
 │       ├── lib/gsap.ts    # Setup central de GSAP
 │       └── modules/
-│           ├── hero-scroll.ts    # Coreografía del hero (pin + scrub)
+│           ├── hero-scroll.ts    # Coreografía del hero (intro + pin)
 │           ├── smooth-scroll.ts  # Lenis + integración ScrollTrigger
 │           ├── header.ts         # Header fijo: scrolled + menú móvil
 │           ├── slider.ts         # Sliders Embla (flechas, dots, contador)
@@ -151,7 +150,7 @@ aparece sin fichas).
   resuelve con una página de opciones propia.
 
 Los assets del diseño (fotos de sectores, logos de sellos y de distribuidores,
-íconos, video y poster del hero, fondos de los CTA) están **importados a la
+íconos, fondo e isla del hero, fondos de los CTA) están **importados a la
 biblioteca de medios**, así que también se cambian desde el admin. Los tres
 íconos del selector de residuos se rasterizaron a PNG porque WordPress no
 acepta SVG por defecto.
@@ -354,33 +353,54 @@ en `inc/acf-productos.php`.
 
 `front-page.php` + `src/ts/modules/hero-scroll.ts`.
 
+**Escena en capas** (sin video, por rendimiento): fondo `.hero__bg` → shade →
+isla `.hero__island` → tres hojas `.hero__leaf--{tl,bl,br}` → contenido.
+
+- El **fondo** se pinta en el primer frame (nunca `visibility:hidden`)
+  y se precarga desde el `<head>` con el mismo srcset que el `<img>`
+  (`ese_latam_hero_fondo()` en `inc/template-tags.php`, hook en
+  `inc/enqueue.php`). Sale del campo "Imagen de fondo del hero"
+  (`hero_video_poster`, conserva el nombre histórico) o, vacío, de
+  `assets/imgs/hero/hero-fondo-{960,1600,2560}.webp`.
+- La **isla** sale del campo `hero_isla` o, vacío, de
+  `assets/imgs/hero/hero-isla-{800,1400}.webp` (recortada al dibujo, sin margen
+  transparente). A la derecha en desktop; centrada en mobile con la propiedad
+  `translate` para no chocar con los transforms de GSAP.
+- Las **hojas** son decorado fijo (`assets/imgs/hero/hoja-*.webp`, ya
+  desenfocadas en el archivo). Dos capas cada una: el wrapper recibe entrada y
+  parallax, el `<img>` el vaivén continuo.
+
+Para regenerar los WebP desde los PNG originales (ImageMagick):
+
+```bash
+magick fondo.png -resize 1600x -strip -quality 72 -define webp:method=6 hero-fondo-1600.webp
+magick isla.png -trim +repage -resize 1400x -strip -quality 74 -define webp:method=6 hero-isla-1400.webp
+```
+
 **Intro al cargar** (timeline de entrada, no depende del scroll):
 
-1. El video asienta desde un ligero zoom; el titular aparece **centrado** con
-   reveal de máscara por línea.
+1. El fondo asienta desde un ligero zoom; las hojas entran desde sus esquinas;
+   el titular aparece **centrado** con reveal de máscara por línea.
 2. El titular viaja a su posición de layout (la distancia se mide del DOM, no
-   hay valores mágicos).
+   hay valores mágicos) mientras emerge la isla (flotación continua en loop).
 3. Entran el menú, el lede, el CTA y la card de stats, escalonados.
 
-**Scroll** (hero pineado durante `PIN_VIEWPORTS` = 2.5 viewports):
+**Scroll** (hero pineado durante `PIN_VIEWPORTS` = 3.5 viewports en desktop,
+2.4 en móvil):
 
-- El video se reproduce scrubbed durante todo el pin.
-- **6 → 58%**: la isla emerge (con flotación continua en loop).
-- **60 → 100%**: la sección siguiente — coronada por las nubes
+- Titular, bloque inferior e isla derivan hacia abajo con parallax; el fondo se
+  acerca levemente y las hojas se abren hacia sus esquinas.
+- **Último viewport del pin**: la sección siguiente — coronada por las nubes
   (`.hero-next__clouds`) — barre el hero y llega al top exactamente al
   liberarse el pin.
 
-El **video se reproduce scrubbed** con el scroll (lerp suavizado). Para que el
-seeking sea fluido debe estar codificado **all-intra** (cada frame keyframe):
-
-```bash
-ffmpeg -i input.mp4 -vf "scale=1920:-2" -c:v libx264 -crf 24 -g 1 \
-  -keyint_min 1 -pix_fmt yuv420p -movflags +faststart -an hero-banner-video.mp4
-```
+Ojo con el LCP: Chrome no toma como candidata una imagen del tamaño del
+viewport, así que el fondo no cuenta. En mobile el LCP es la isla — por eso
+ahí entra casi de inmediato (`ISLAND_IN`) en vez de esperar al titular.
 
 La sección que sigue al hero lleva la clase **`.hero-next`**: el módulo le
-aplica `margin-top` negativo y `min-height` iguales a la altura real del hero
-(re-medidos en cada refresh) para el solape exacto. Sin JS o con
+aplica un `margin-top` negativo igual a la altura real del hero (re-medido en
+cada refresh) para el solape exacto. Sin JS o con
 `prefers-reduced-motion` todo queda estático, visible y en flujo normal.
 
 ---
@@ -607,24 +627,28 @@ footer (sin Contactemos).
 
 ---
 
-## 🌎 Globo de Distribuidores: textura cartoon
+## 🌎 Planeta de Distribuidores
 
-El globo (`globe-scene.ts`) usa `assets/imgs/distribuidores/earth-cartoon.webp`:
-mar celeste de marca y continentes en verdes vivos, posterizados, con borde
-de costa. La genera `tools/globo-cartoon.py` (Pillow + numpy) a partir de los
-mapas realistas que siguen en la carpeta (`earth-daymap.jpg` para el relieve
-de color, `earth-specular.jpg` como máscara agua/tierra). Para retocar la
-paleta se cambian los hex del script y se vuelve a correr. Las luces de la
-escena se bajaron y neutralizaron para que los verdes no salgan pastel ni
-turquesa; el normal map queda al 45% para que el relieve no rompa el look plano.
+La sección `#distribuidores` de la home es un planeta 3D a sangre
+(`src/ts/modules/globe-scene.ts`, Three.js + `topojson-client`) con el intro,
+la tarjeta y el enlace a la izquierda y el riel de países a la derecha
+(`<select>` nativo por debajo de 1100px).
 
-En reposo el globo no da la vuelta completa: hace un barrido pendular sobre
-la franja de longitudes de los países conectados (de México a Uruguay, con
-2° de margen), con la latitud "respirando" unos grados, así el frente nunca
-muestra océano ni continentes sin marcadores. Ciclo de 22 s (velocidad pico
-~0.15 rad/s, el triple del giro anterior). Tras arrastrar o elegir un país
-espera 2,5 s, alinea la fase con la orientación actual y retoma sin salto
-(constantes `IDLE_*` en `globe-scene.ts`).
+- **Textura**: `assets/imgs/distribuidores/earth-diffuse.webp` + las fronteras
+  de `assets/data/countries-110m.json` (world-atlas 110m) dibujadas encima en
+  un canvas; los países conectados van con el borde más marcado. Rugosidad
+  (mar brillante / tierra mate) y emisivo (país elegido iluminado) se pintan
+  también en canvas.
+- **Código ISO**: el contorno de cada país se busca por su ISO 3166 numérico
+  (campo "Código ISO numérico" del término de la taxonomía Países; vacío, cae
+  al mapa de `ese_latam_pais_iso()` en `inc/distribuidores.php`). Sin ISO el
+  país solo tiene su marcador, que igual se puede tocar.
+- **Interacción**: arrastre solo horizontal, acotado a Latinoamérica
+  (`ROT_MIN`/`ROT_MAX`, se amplía si algún país queda fuera) con rebote e
+  inercia; elegir un país gira e inclina hasta él, deja un pulso y un tooltip
+  fijo. Hover → tooltip con el nombre; clic → lo elige y deja una onda.
+- No renderiza fuera de pantalla ni con la pestaña oculta. La entrada la
+  coreografía `distribuidores-intro.ts`.
 
 ---
 

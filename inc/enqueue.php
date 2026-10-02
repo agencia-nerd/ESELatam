@@ -115,3 +115,21 @@ add_filter('script_loader_tag', static function (string $tag, string $handle): s
     }
     return str_replace('<script ', '<script type="module" ', $tag);
 }, 10, 2);
+
+// Preload del fondo del hero de la portada: es lo primero que se ve y, sin esto,
+// el navegador recién lo descubre al parsear el <body>. Mismo src/srcset que
+// el <img> de front-page.php (ambos salen de ese_latam_hero_fondo()), así que
+// la descarga se reutiliza en vez de duplicarse.
+add_action('wp_head', static function (): void {
+    if (! is_front_page()) {
+        return;
+    }
+
+    $fondo = ese_latam_hero_fondo();
+
+    printf(
+        '<link rel="preload" as="image" href="%s"%s fetchpriority="high">' . "\n",
+        esc_url($fondo['src']),
+        '' !== $fondo['srcset'] ? ' imagesrcset="' . esc_attr($fondo['srcset']) . '" imagesizes="100vw"' : ''
+    );
+}, 2);

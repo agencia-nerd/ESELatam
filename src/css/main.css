@@ -1249,28 +1249,34 @@
     background-color: var(--color-primary-900);
   }
 
-  .hero__video {
+  /* Fondo (cielo y montañas): es lo primero que se ve, así que NO lleva
+     visibility:hidden como el resto de las capas — se pinta en el primer
+     frame y hero-scroll.ts solo le anima la escala. */
+  .hero__bg {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    object-position: 35% 50%;
     z-index: 0;
   }
 
-  /* Gradiente de legibilidad sobre el video */
+  /* Gradiente de legibilidad sobre el fondo. Más suave que el que pedía el
+     video: el paisaje es claro y el diseño lo deja respirar a la derecha. */
   .hero__shade {
     position: absolute;
     inset: 0;
     z-index: 1;
-    background-image: linear-gradient(to right, rgb(0 0 0 / 0.56) 25.2%, rgb(102 102 102 / 0) 100%);
+    background-image: linear-gradient(to right, rgb(0 0 0 / 0.42) 18%, rgb(0 0 0 / 0) 68%);
   }
 
-  /* Isla flotante — aparece con el scroll (GSAP) */
+  /* Isla flotante — entra con la intro (GSAP). En desktop baja más allá del
+     borde inferior del hero, como en el diseño: la punta de roca se corta. */
   .hero__island {
     position: absolute;
     z-index: 2;
-    bottom: 7%;
+    bottom: -8%;
 
     /* Tres topes, y el tercero es el que importa cuando cambia la imagen.
      *
@@ -1286,17 +1292,16 @@
      *
      * --island-max (ancho máximo en px) sale del campo "Ancho máximo" del
      * hero; sin campo cargado, los 1720px de siempre. */
-    --island-alto-max: 80svh;
+    --island-alto-max: 74svh;
     --island-ratio: 1.7778;
-    --island-w: min(92vw, var(--island-max, 1720px), var(--island-alto-max) * var(--island-ratio));
-    /* island.png trae ~26% de ancho transparente a la derecha (medido sobre el
-       canal alpha: el dibujo ocupa del 24.5% al 73.96% del PNG). Se descuenta
-       ese margen para que el borde VISIBLE de la isla caiga en el gutter del
-       contenedor —el mismo clamp que usa .hero__content— y no contra el borde
-       de la pantalla. Antes era `right: -20%`, relativo al ANCHO DEL HERO: en
-       pantallas anchas ese 20% supera al margen transparente del PNG y la isla
-       terminaba recortada. */
-    --island-alpha-right: 0.2604;
+    /* 44vw: la isla acompaña al titular desde la derecha sin dominar la
+       escena (a 52vw tapaba la mitad del hero y obligaba a una card enorme). */
+    --island-w: min(44vw, var(--island-max, 1720px), var(--island-alto-max) * var(--island-ratio));
+    /* Fracción de ancho transparente a la derecha del PNG, que se descuenta
+       para que el borde VISIBLE de la isla caiga en el gutter del contenedor
+       —el mismo clamp que usa .hero__content—. La isla actual viene recortada
+       al dibujo (sin margen); una con margen transparente lo declara acá. */
+    --island-alpha-right: 0;
     width: var(--island-w);
     right: calc(clamp(1.5rem, 6.25vw, 7.5rem) - var(--island-w) * var(--island-alpha-right));
     visibility: hidden;
@@ -1304,10 +1309,77 @@
     pointer-events: none;
   }
 
+  /* Desktop (desde 1024px) con la card cargada: la isla sube y se corre
+     hacia el centro para que la card quede a su costado y solo roce la
+     base de roca, en vez de taparle la mitad. El corrimiento arranca en 0
+     a 1024px y crece con el ancho hasta 12vw. Sin card (campos vacíos) la
+     isla se queda abajo contra el gutter derecho, como en el diseño. */
+  @media (width >= 64rem) {
+    .hero:has(.hero-card-wrap) .hero__island {
+      bottom: 4%;
+      right: calc(clamp(1.5rem, 6.25vw, 7.5rem) + clamp(0px, (100vw - 64rem) * 0.3, 12vw) - var(--island-w) * var(--island-alpha-right));
+    }
+  }
+
   .hero__island img {
     display: block;
     width: 100%;
     height: auto;
+  }
+
+  /* Hojas de las esquinas. Mismo z-index que .hero__content pero antes en el
+     DOM: tapan la isla y quedan por debajo del texto, la card y el CTA. El
+     desenfoque ya viene en los PNG (sin filter: blur, que costaría pintar en
+     cada frame del vaivén). Wrapper = entrada + parallax; img = vaivén. */
+  /* Las hojas desbordan la pantalla un --leaf-bleed de su propio ancho: el
+     vaivén las gira sobre su esquina y, pegadas justo al borde, ese giro
+     (más el margen transparente y el desenfoque del PNG) dejaba ver una franja
+     de cielo entre la hoja y el borde. */
+  .hero__leaf {
+    --leaf-bleed: calc(var(--leaf-w) * -0.06);
+    position: absolute;
+    z-index: 3;
+    width: var(--leaf-w);
+    pointer-events: none;
+    visibility: hidden;
+    /* GSAP las revela; evita flash inicial */
+  }
+
+  .hero__leaf img {
+    display: block;
+    width: 100%;
+    height: auto;
+    will-change: transform;
+  }
+
+  .hero__leaf--tl {
+    --leaf-w: clamp(90px, 11vw, 240px);
+    top: var(--leaf-bleed);
+    left: var(--leaf-bleed);
+  }
+
+  .hero__leaf--tl img {
+    transform-origin: 0 0;
+  }
+
+  .hero__leaf--bl {
+    --leaf-w: clamp(160px, 24vw, 480px);
+    bottom: var(--leaf-bleed);
+    left: var(--leaf-bleed);
+  }
+
+  .hero__leaf--bl img {
+    transform-origin: 0 100%;
+  }
+
+  .hero__leaf--br {
+    --leaf-w: clamp(180px, 27vw, 560px);
+    bottom: var(--leaf-bleed);
+    right: var(--leaf-bleed);
+  }
+
+  .hero__leaf--br img {
+    transform-origin: 100% 100%;
   }
 
   .hero__content {
@@ -1355,16 +1427,34 @@
     margin-block: auto;
   }
 
-  @media (width < 48rem) {
+  /* Composición "mobile" del hero hasta 64rem (también en tablet, donde el
+     menú ya es hamburguesa): con titular, bajada, CTA y card a la izquierda
+     no quedaba lugar para la isla. Mismo corte que isMobile en hero-scroll.ts. */
+  @media (width < 64rem) {
 
-    /* Sin animación de entrada en mobile: el titular "real" ahí es
+    /* Sin animación de entrada en mobile: el titular que se VE ahí es
        .hero__title-settled (dentro de .hero__intro, ver hero-scroll.ts),
-       que entra con un simple fade junto al lede/CTA. Este ya no cumple
-       ningún rol visible, así que se saca del todo en vez de ocultarlo con
-       autoAlpha (evita correr getBoundingClientRect/tweens sobre un
-       elemento que nunca se ve). */
+       que entra con un simple fade junto al lede/CTA. Este es el único <h1>
+       de la página, así que no se saca con display:none (dejaría la portada
+       sin h1 para lectores de pantalla y buscadores): se oculta solo a la
+       vista, como .sr-only, y sale del flujo igual que antes. */
     .hero__title-wrap {
-      display: none;
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      padding: 0;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* El estado inicial de la coreografía lo deja en visibility:hidden, que
+       también lo saca del árbol de accesibilidad; acá no hay intro que lo
+       revele. */
+    .hero__title-wrap .hero__title {
+      visibility: visible;
     }
   }
 
@@ -1388,6 +1478,14 @@
     visibility: hidden;
   }
 
+  /* Reduce-motion: hero-scroll.ts igual las revela, pero si el JS no llega
+     a correr las hojas son decorado y no deben faltar. */
+  @media (prefers-reduced-motion: reduce) {
+    .hero__leaf {
+      visibility: visible;
+    }
+  }
+
   /* Duplicado de .hero__title (misma clase, mismas reglas de tipografía)
      que solo se ve en mobile — ver el porqué en front-page.php y
      hero-scroll.ts. En desktop no existe visualmente: .hero__title de
@@ -1396,13 +1494,13 @@
     display: none;
   }
 
-  @media (width < 48rem) {
+  @media (width < 64rem) {
     .hero__title-settled {
       display: block;
       margin-bottom: 1.5rem;
     }
 
-    /* .hero__title-wrap es display:none acá (ver arriba) — con un solo hijo
+    /* .hero__title-wrap sale del flujo acá (ver arriba) — con un solo hijo
        visible en .hero__content, el justify-content:space-between de ese
        flex ya no tiene "entre" que repartir y .hero__bottom quedaba pegado
        arriba, justo debajo del padding-top, con todo el resto de la sección
@@ -1608,7 +1706,7 @@
      Figma original (402×240, 36px): glass más oscuro y con halo, borde
      claro, sombra de elevación y el "100%" como protagonista. */
   .hero-card-wrap {
-    width: min(440px, 100%);
+    width: min(300px, 100%);
     /* La flotación (float.ts) mueve la card dentro de este wrapper. */
   }
 
@@ -1620,9 +1718,9 @@
     isolation: isolate;
     overflow: hidden;
     width: 100%;
-    padding: 2.25rem 2.5rem 2.5rem;
+    padding: 1.25rem 1.5rem 1.5rem;
     border: 1px solid rgb(255 255 255 / 0.28);
-    border-radius: 20px;
+    border-radius: 16px;
     background-color: rgb(0 8 30 / 0.46);
     background-image: linear-gradient(135deg, rgb(255 255 255 / 0.12) 0%, rgb(255 255 255 / 0.02) 45%, rgb(0 145 209 / 0.12) 100%);
     backdrop-filter: blur(18px) saturate(1.2);
@@ -1637,7 +1735,7 @@
     content: '';
     position: absolute;
     top: 0;
-    left: 2.5rem;
+    left: 1.5rem;
     width: 64px;
     height: 4px;
     border-radius: 0 0 99px 99px;
@@ -1665,8 +1763,8 @@
   }
 
   .hero-card__stat {
-    font-size: clamp(3rem, 3.75vw, 4.5rem);
-    /* 72px en desktop */
+    font-size: clamp(2rem, 2.4vw, 2.75rem);
+    /* 44px en desktop grande: la card no debe competir con la isla */
     font-weight: 800;
     line-height: 1;
     letter-spacing: -0.03em;
@@ -1675,7 +1773,7 @@
   }
 
   .hero-card__tag {
-    font-size: 18px;
+    font-size: 13px;
     font-weight: 800;
     line-height: 1.4;
     letter-spacing: 0.06em;
@@ -1686,12 +1784,11 @@
 
   .hero-card__desc {
     position: relative;
-    max-width: 340px;
-    margin-top: 0.875rem;
-    padding-top: 1.125rem;
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
     padding-left: 1.25rem;
     border-top: 1px solid rgb(255 255 255 / 0.14);
-    font-size: 17px;
+    font-size: 14px;
     font-weight: 500;
     line-height: 1.5;
     color: rgb(255 255 255 / 0.92);
@@ -1701,7 +1798,7 @@
     content: '';
     position: absolute;
     left: 0;
-    top: calc(1.125rem + 0.45em);
+    top: calc(0.75rem + 0.5em);
     width: 8px;
     height: 8px;
     border-radius: 50%;
@@ -2940,15 +3037,29 @@
     }
   }
 
-  @media (width < 48rem) {
+  @media (width < 64rem) {
     .hero__island {
-      /* Vía la custom property, no `width`: así el `right` calculado arriba
-         (que descuenta el margen transparente del PNG) sigue el ancho real. */
-      --island-w: min(120vw, 640px);
+      /* Vía la custom property, no `width`, para que el tope por alto
+         (--island-alto-max × proporción) siga aplicando. */
+      --island-w: min(88vw, 560px, 40svh * var(--island-ratio));
+      /* Centrada con left/right 0 + margin auto (ancho fijo): sin transforms,
+         porque GSAP anima el transform de este elemento y además absorbe la
+         propiedad `translate` convirtiéndola a px — al cambiar el ancho de la
+         ventana la isla quedaba corrida. */
+      left: 0;
+      right: 0;
+      margin-inline: auto;
       /* Arriba del bloque de texto (.hero__title-settled + lede + CTA), no
          detrás/superpuesta — con .hero__title-settled ahora en el layout
          (ver hero-scroll.ts), .hero__bottom ocupa más alto que antes. */
       bottom: 50%;
+    }
+
+    /* En mobile el texto ocupa todo el ancho, sobre la parte más clara del
+       cielo: el gradiente lateral de desktop no alcanza, se oscurece desde
+       abajo, donde vive el bloque de texto. */
+    .hero__shade {
+      background-image: linear-gradient(to top, rgb(0 0 0 / 0.55) 0%, rgb(0 0 0 / 0.3) 45%, rgb(0 0 0 / 0) 70%);
     }
 
     /* En mobile la isla ocupa la mitad superior y el bloque de texto la
@@ -2956,7 +3067,9 @@
     .hero-card-wrap {
       display: none;
     }
+  }
 
+  @media (width < 48rem) {
     /* Mismo criterio que .sector-card: en mobile 45px/30px de padding para
        un label de 14px se leía desproporcionado contra el resto de la
        tipografía ya reducida — el 45px izquierdo se conserva más grande
@@ -2976,166 +3089,172 @@
 }
 
 /* =========================================================
-   COMPONENTE — Distribuidores (Figma: 3323-55)
-   Globo 3D (Three.js + GSAP, ver globe-scene.ts / distribuidores.ts) como
-   FONDO de la sección, a sangre; encima flotan el intro, el riel de países
-   y la tarjeta del país activo.
-   Elegir un país (riel o marcador del globo) gira el globo y hace crossfade
-   de la tarjeta. Los 10 países entran a la vez: sin scroll anidado ni
-   acordeón, que era lo que obligaba a re-centrar el panel por JS.
+   COMPONENTE — Distribuidores (rediseño "new-mundo")
+   Planeta 3D (Three.js, ver globe-scene.ts / distribuidores.ts) a sangre
+   como FONDO de la sección: ocupa las tres columnas de la grilla y encima
+   flotan el intro, la tarjeta y el enlace (izquierda) y el riel de países
+   (derecha). Órbitas, partículas y halo van dentro del mismo canvas.
+   Elegir un país (riel, <select> o tocándolo en el planeta) lo gira,
+   lo ilumina y hace crossfade de la tarjeta.
+   Corte mobile/tablet: 1099px (sincronizado con NARROW_QUERY en
+   distribuidores.ts, que también ajusta el encuadre de la cámara).
    ========================================================= */
 @layer components {
   .distribuidores {
+    --dist-pad: clamp(24px, 4.2vw, 80px);
+    --dist-navy: #0a2468;
     position: relative;
     isolation: isolate;
     overflow: hidden;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) auto;
     grid-template-rows: auto 1fr auto;
-    gap: clamp(1.5rem, 3vw, 3rem);
-    min-height: clamp(720px, 92vh, 980px);
-    padding: clamp(4rem, 9vh, 6.5rem) clamp(1.5rem, 4.25vw, 7.5rem);
-    background: radial-gradient(ellipse at center,
-        #33a7da 0%, #2685bc 25%, #1a639e 50%, #0d407f 75%, #062f70 87.5%, #001e61 100%);
+    grid-template-areas:
+      "intro . list"
+      "card . list"
+      "cta . list";
+    height: 100vh;
+    height: 100svh;
+    min-height: 680px;
+    background: radial-gradient(75% 85% at 58% 50%, #2fa4dc 0%, #1e6fc0 38%, #10408f 72%, var(--dist-navy) 100%);
     color: var(--color-white);
+    user-select: none;
   }
 
-  /* Anillos concéntricos decorativos. Viven DENTRO de .distribuidores__globe
-     (ver front-page.php), así que comparten su centro por construcción en
-     cualquier breakpoint, y se miden en % del globo para que el halo guarde
-     siempre la misma proporción.
-     Antes cada uno traía su propio min(vw, px) independiente del globo: a
-     1440px el anillo interior (54vw → 778px) quedaba MÁS CHICO que el globo
-     (62vw → 820px) y desaparecía detrás, y en mobile —donde el globo pasa a
-     ser un elemento en flujo— su ancla de 56%/48% de la sección no tenía ya
-     ninguna relación con dónde había quedado el globo. */
-  .distribuidores__rings {
+  /* ---------- Planeta ---------- */
+
+  .distribuidores__stage {
+    grid-area: 1 / 1 / 4 / 4;
+    position: relative;
+    z-index: 0;
+  }
+
+  /* La entrada (distribuidores-intro.ts) escala este contenedor desde su centro */
+  .distribuidores__canvas {
     position: absolute;
     inset: 0;
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  /* Centrados con `translate` (no `transform`) por la misma razón que el
-     globo: la entrada los escala con GSAP. */
-  .distribuidores__rings span {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    aspect-ratio: 1;
-    border: 1px solid rgb(255 255 255 / 0.12);
-    border-radius: 50%;
-    translate: -50% -50%;
-    will-change: transform, opacity;
-  }
-
-  .distribuidores__rings span:first-child {
-    width: 116%;
-  }
-
-  .distribuidores__rings span:last-child {
-    width: 148%;
-  }
-
-  /* El globo es el fondo, corrido a la derecha para que la tarjeta flotante
-     (abajo a la izquierda) no lo tape. Arrastrable con el cursor; elegir un
-     país también lo gira. El centrado va con `translate` (propiedad aparte,
-     no `transform`): distribuidores-intro.ts escala y rota el canvas de
-     adentro en la entrada, y un transform de CSS acá obligaría a GSAP a
-     recomponer la matriz. */
-  .distribuidores__globe {
-    position: absolute;
-    left: 57%;
-    top: 50%;
-    z-index: 1;
-    /* 42vw deja aire entre la tarjeta (izq.) y el riel de países (der.) en
-       1280–1440; el techo de 780px es el tamaño acordado para pantallas
-       anchas (a 1920 el globo mide ~710px). */
-    width: min(42vw, 780px);
-    aspect-ratio: 1;
-    translate: -50% -50%;
-  }
-
-  .distribuidores__globe [data-globe-canvas] {
-    position: relative;
-    /* Por encima de los anillos, que son su hermano previo dentro del globo */
-    z-index: 1;
-    width: 100%;
-    height: 100%;
-    /* La entrada lo escala y lo gira desde su propio centro */
+    touch-action: pan-y;
     transform-origin: center;
     will-change: transform, opacity;
   }
 
-  .distribuidores__globe canvas {
-    display: block;
-    width: 100% !important;
-    height: 100% !important;
-  }
-
-  /* Tooltip del globo: sigue al marcador bajo el cursor (posición vía
-     transform, calculada en globe-scene.ts a partir de su proyección 3D). */
-  .globe-tooltip {
+  .distribuidores__canvas canvas {
     position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 3;
-    padding: 6px 12px;
-    border-radius: 8px;
-    background-color: var(--color-white);
-    color: var(--color-primary);
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    pointer-events: none;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
     opacity: 0;
-    box-shadow: 0 8px 20px rgb(0 0 0 / 0.25);
-    transition: opacity .15s ease;
-    will-change: transform;
+    cursor: grab;
+    transition: opacity 1.4s ease;
   }
 
-  .globe-tooltip.is-visible {
+  .distribuidores__canvas canvas.is-ready {
     opacity: 1;
   }
 
-  .globe-tooltip::after {
-    content: '';
+  /* Tooltip de hover: sigue al cursor (posición vía transform desde globe-scene.ts) */
+  .distribuidores__hover-tip {
     position: absolute;
-    left: 50%;
-    top: 100%;
-    width: 0;
-    height: 0;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: var(--color-white);
+    left: 0;
+    top: 0;
+    padding: 6px 10px;
+    border: 1px solid rgb(255 255 255 / 0.3);
+    border-radius: 8px;
+    background: rgb(10 40 100 / 0.78);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s;
   }
 
-  /* pointer-events: none — es una columna de texto, no debe haber espacio
-     "vacío invisible" capturando el drag del globo que pasa por detrás. */
-  .distribuidores__intro {
-    grid-column: 1;
-    grid-row: 1;
-    position: relative;
-    z-index: 2;
+  /* Tooltip fijo sobre el país elegido: proyectado desde su posición 3D */
+  .distribuidores__sel-tip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .3s ease;
+    will-change: transform;
+  }
+
+  .distribuidores__sel-tip-inner {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1.25rem;
-    max-width: 50ch;
+    align-items: center;
+    transform: translate(-50%, calc(-100% - 14px));
+  }
+
+  .distribuidores__sel-tip-label {
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: var(--color-white);
+    color: var(--dist-navy);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 10px 28px rgb(5 20 70 / 0.28);
+  }
+
+  .distribuidores__sel-tip-arrow {
+    width: 10px;
+    height: 10px;
+    margin-top: -6px;
+    border-radius: 2px;
+    background: var(--color-white);
+    transform: rotate(45deg);
+  }
+
+  .distribuidores__loader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: rgb(225 238 255 / 0.8);
     pointer-events: none;
   }
 
-  .distribuidores__intro .type-kicker {
-    color: rgb(255 255 255 / 0.9);
+  .distribuidores__loader[hidden] {
+    display: none;
+  }
+
+  /* ---------- Intro ----------
+     pointer-events: none — es una columna de texto encima del planeta, no
+     debe haber espacio "vacío invisible" capturando el arrastre. */
+  .distribuidores__intro {
+    grid-area: intro;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: clamp(40px, 10vh, 88px) 0 0 var(--dist-pad);
+    pointer-events: none;
+  }
+
+  .distribuidores__eyebrow {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
   }
 
   .distribuidores__title {
-    font-size: clamp(2.25rem, 4.4vw, 4rem);
+    margin: 0;
+    font-size: clamp(36px, 3.8vw, 72px);
     font-weight: 300;
-    line-height: 1.05;
+    line-height: 1.02;
+    letter-spacing: -.02em;
     text-transform: uppercase;
+    text-wrap: balance;
   }
 
   .distribuidores__title strong {
@@ -3143,39 +3262,56 @@
   }
 
   .distribuidores__desc {
-    font-size: 18px;
+    margin: 0;
+    max-width: 540px;
+    font-size: clamp(15px, 1.05vw, 18px);
     line-height: 1.6;
-    color: rgb(255 255 255 / 0.8);
+    color: rgb(255 255 255 / 0.88);
+    text-wrap: pretty;
   }
 
-  /* ---------- Riel de países (columna derecha) ---------- */
+  /* ---------- Selector de países ---------- */
+
+  .distribuidores__picker {
+    grid-area: list;
+    position: relative;
+    z-index: 3;
+    align-self: center;
+    min-width: 0;
+  }
 
   .distribuidores__rail {
-    grid-column: 2;
-    grid-row: 1 / -1;
-    align-self: center;
-    position: relative;
-    z-index: 2;
     display: flex;
     flex-direction: column;
-    gap: 1rem;
-    width: clamp(200px, 19vw, 250px);
+    gap: clamp(8px, 1.6vh, 14px);
+    width: calc(clamp(270px, 17vw, 300px) + var(--dist-pad));
+    max-height: 100vh;
+    padding: clamp(12px, 3vh, 24px) var(--dist-pad) clamp(12px, 3vh, 24px) 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.3) transparent;
   }
 
-  .distribuidores__rail-head {
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: rgb(255 255 255 / 0.65);
+  .distribuidores__total {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: clamp(8px, 2.4vh, 22px);
+    padding: 0 16px;
   }
 
   .distribuidores__rail-count {
-    margin-right: 6px;
-    font-size: 35px;
+    font-size: clamp(34px, 5vh, 44px);
     font-weight: 300;
-    letter-spacing: 0;
-    color: var(--color-white);
+    line-height: 1;
+  }
+
+  .distribuidores__total-label {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
   }
 
   .distribuidores__rail-items {
@@ -3184,308 +3320,423 @@
     gap: 2px;
   }
 
-  /* Selector de país (solo mobile, ver el @media de abajo): el desktop se
-     queda con el riel de pastillas, que ahí sí entra entero al costado del
-     globo. */
-  .distribuidores__select {
-    display: none;
-    position: relative;
-    align-items: center;
-  }
-
-  .distribuidores__select select {
-    appearance: none;
-    width: 100%;
-    min-height: 52px;
-    padding: 0 3rem 0 1rem;
-    border: 1px solid rgb(255 255 255 / 0.28);
-    border-radius: 12px;
-    background-color: rgb(255 255 255 / 0.1);
-    backdrop-filter: blur(8px);
-    color: var(--color-white);
-    font-family: var(--font-sans);
-    /* 16px a propósito: por debajo de eso, iOS hace zoom al enfocar el campo
-       y deja la página descuadrada al volver. */
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-    cursor: pointer;
-    /* El desplegable lo pinta el sistema operativo, no el CSS: sin esto sale
-       en claro y queda ilegible contra el azul de la sección. */
-    color-scheme: dark;
-  }
-
-  .distribuidores__select-icon {
-    position: absolute;
-    right: 1rem;
-    display: inline-flex;
-    color: var(--color-white);
-    pointer-events: none;
-  }
-
+  /* El fondo blanco del activo va en un ::before para poder fundirlo */
   .country-pill {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    position: relative;
+    display: flex;
     align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 9px 16px;
-    border: 1px solid transparent;
+    gap: 12px;
+    min-height: clamp(32px, 4.9vh, 44px);
+    padding: 0 16px;
+    border: 0;
     border-radius: 10px;
-    background-color: transparent;
-    color: rgb(255 255 255 / 0.7);
+    background: transparent;
+    color: var(--color-white);
     text-align: left;
     cursor: pointer;
-    transition: background-color .3s ease, border-color .3s ease, color .3s ease,
-      transform .4s cubic-bezier(.22, 1, .36, 1);
+    transition: background-color .25s, color .3s;
+  }
+
+  .country-pill::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 10px;
+    background: var(--color-white);
+    box-shadow: 0 8px 24px rgb(5 20 70 / 0.22);
+    opacity: 0;
+    transition: opacity .3s;
+  }
+
+  .country-pill > * {
+    position: relative;
   }
 
   @media (hover: hover) and (pointer: fine) {
     .country-pill:hover {
-      background-color: rgb(255 255 255 / 0.12);
-      color: var(--color-white);
+      background-color: rgb(255 255 255 / 0.08);
     }
   }
 
-  /* El activo se despega hacia el globo: refuerza el vínculo pastilla ↔ marcador */
-  .country-pill.is-active {
-    background-color: var(--color-white);
-    border-color: var(--color-white);
-    color: var(--color-primary);
-    transform: translateX(-12px);
+  .country-pill:focus-visible {
+    outline: 2px solid var(--color-white);
+    outline-offset: 2px;
   }
 
   .country-pill__dot {
+    flex: 0 0 auto;
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background-color: currentColor;
-    opacity: 0.45;
-    transition: opacity .3s ease, box-shadow .3s ease, background-color .3s ease;
-  }
-
-  .country-pill.is-active .country-pill__dot {
-    opacity: 1;
-    background-color: var(--color-secondary);
-    box-shadow: 0 0 0 4px rgb(0 145 209 / 0.25);
+    background: rgb(255 255 255 / 0.55);
   }
 
   .country-pill__name {
-    font-size: 18px;
+    flex: 1;
+    font-size: clamp(14px, 2vh, 16px);
     font-weight: 700;
-    letter-spacing: 0.02em;
+    letter-spacing: .01em;
     text-transform: uppercase;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .country-pill__count {
     font-size: 12px;
-    font-weight: 800;
-    opacity: 0.55;
+    font-weight: 600;
+    color: rgb(255 255 255 / 0.65);
   }
 
-  /* ---------- Tarjeta flotante del país activo ---------- */
+  .country-pill.is-active {
+    color: var(--dist-navy);
+  }
+
+  .country-pill.is-active::before {
+    opacity: 1;
+  }
+
+  .country-pill.is-active .country-pill__dot {
+    background: #1e7fd8;
+    box-shadow: 0 0 0 3px rgb(30 127 216 / 0.22);
+  }
+
+  .country-pill.is-active .country-pill__count {
+    color: rgb(10 36 104 / 0.7);
+  }
+
+  /* Mobile/tablet: el riel deja paso a un <select> nativo (ver @media abajo) */
+  .distribuidores__mobile {
+    display: none;
+  }
+
+  .distribuidores__select {
+    position: relative;
+    max-width: 100%;
+  }
+
+  .distribuidores__select select {
+    width: 100%;
+    min-height: 52px;
+    padding: 0 48px 0 40px;
+    border: 1px solid rgb(255 255 255 / 0.9);
+    border-radius: 14px;
+    background: var(--color-white);
+    color: var(--dist-navy);
+    font-family: var(--font-sans);
+    /* 16px a propósito: por debajo de eso, iOS hace zoom al enfocar el campo. */
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    text-transform: uppercase;
+    cursor: pointer;
+    appearance: none;
+    box-shadow: 0 10px 28px rgb(5 20 70 / 0.22);
+  }
+
+  .distribuidores__select select:focus-visible {
+    outline: 2px solid var(--color-white);
+    outline-offset: 3px;
+  }
+
+  .distribuidores__select option {
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+
+  .distribuidores__select-dot {
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    margin-top: -3.5px;
+    border-radius: 50%;
+    background: #1e7fd8;
+    box-shadow: 0 0 0 3px rgb(30 127 216 / 0.22);
+    pointer-events: none;
+  }
+
+  .distribuidores__select-chev {
+    position: absolute;
+    right: 18px;
+    top: 50%;
+    margin-top: -9px;
+    color: var(--dist-navy);
+    pointer-events: none;
+  }
+
+  /* ---------- Tarjeta del país activo ---------- */
 
   .distribuidores__panel {
-    grid-column: 1;
-    grid-row: 3;
-    align-self: end;
-    justify-self: start;
+    grid-area: card;
     position: relative;
-    z-index: 2;
-    width: min(100%, 430px);
-    padding: clamp(1.5rem, 2.4vw, 2rem);
-    border: 1px solid rgb(255 255 255 / 0.25);
-    border-radius: 20px;
-    background-color: rgb(255 255 255 / 0.1);
-    backdrop-filter: blur(18px);
-    box-shadow: 0 24px 60px rgb(0 0 0 / 0.28);
+    z-index: 1;
+    align-self: end;
+    padding-left: var(--dist-pad);
   }
 
   /* Los paneles se apilan en la MISMA celda de grilla: la tarjeta toma el
      alto del más largo y no salta de tamaño al cambiar de país. Los
-     inactivos se ocultan con visibility (no con `hidden`/display:none, que
-     los sacaría del cálculo de alto y traería de vuelta el salto). */
+     inactivos se ocultan con visibility (no con display:none, que los
+     sacaría del cálculo de alto y traería de vuelta el salto). */
   .distribuidores__panel-stack {
     display: grid;
+    max-width: 440px;
+    padding: clamp(24px, 2.2vw, 34px);
+    border: 1px solid rgb(255 255 255 / 0.22);
+    border-radius: 20px;
+    background: rgb(255 255 255 / 0.1);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 30px 60px rgb(4 18 64 / 0.28);
   }
 
-  .distribuidores__panel-stack>* {
+  .distribuidores__panel-stack > * {
     grid-area: 1 / 1;
     opacity: 0;
     visibility: hidden;
     transform: translateY(10px);
-    transition: opacity .45s ease, transform .45s cubic-bezier(.22, 1, .36, 1),
-      visibility .45s;
+    transition: opacity .45s ease, transform .45s cubic-bezier(.22, 1, .36, 1), visibility .45s;
   }
 
-  .distribuidores__panel-stack>.is-active {
+  .distribuidores__panel-stack > .is-active {
     opacity: 1;
     visibility: visible;
     transform: none;
   }
 
+  .country-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .country-panel__head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgb(255 255 255 / 0.25);
+  }
+
   .country-panel__kicker {
     font-size: 12px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: .1em;
     text-transform: uppercase;
-    color: rgb(255 255 255 / 0.6);
+    color: rgb(255 255 255 / 0.78);
   }
 
   .country-panel__name {
-    margin-top: 4px;
-    font-size: clamp(1.75rem, 2.6vw, 2.5rem);
+    margin: 0;
+    font-size: clamp(26px, 2vw, 36px);
     font-weight: 300;
-    line-height: 1.1;
+    line-height: 1.05;
+    letter-spacing: -.01em;
     text-transform: uppercase;
+    text-wrap: balance;
   }
 
   .country-panel__list {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    margin-top: 1.25rem;
-    padding-top: 1.25rem;
-    border-top: 1px solid rgb(255 255 255 / 0.2);
+    gap: 2px;
+    margin: -8px -12px;
+    padding: 0;
     list-style: none;
   }
 
   .country-panel__item {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
+    gap: 14px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: var(--color-white);
+    transition: background-color .2s;
   }
 
-  .country-panel__avatar {
-    flex-shrink: 0;
-    display: grid;
-    place-items: center;
+  a.country-panel__item:hover,
+  a.country-panel__item:focus-visible {
+    background-color: rgb(255 255 255 / 0.1);
+  }
+
+  .country-panel__num {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background-color: var(--color-white);
-    color: var(--color-primary);
-    font-size: 14px;
-    font-weight: 800;
+    background: var(--color-white);
+    color: var(--dist-navy);
+    font-size: 13px;
+    font-weight: 700;
   }
 
   .country-panel__text {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     min-width: 0;
+    padding-top: 1px;
   }
 
   .country-panel__text strong {
-    font-size: 14px;
-    font-weight: 800;
-    letter-spacing: 0.01em;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .01em;
     text-transform: uppercase;
   }
 
   .country-panel__text span {
-    font-size: 13px;
+    font-size: 13.5px;
     line-height: 1.45;
-    color: rgb(255 255 255 / 0.75);
+    color: rgb(255 255 255 / 0.84);
+  }
+
+  .country-panel__arrow {
+    flex: 0 0 auto;
+    margin: 3px 0 0 auto;
+    opacity: .75;
+  }
+
+  /* ---------- Enlace "Ver todos" ---------- */
+
+  .distribuidores__cta-wrap {
+    grid-area: cta;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: flex-start;
+    padding: 28px 0 clamp(32px, 7vh, 72px) var(--dist-pad);
   }
 
   .distribuidores__link {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 16px;
-    margin-top: clamp(1rem, 2.5vh, 1.75rem);
-    pointer-events: auto;
+    color: var(--color-white);
   }
 
   .distribuidores__link-text {
-    padding-bottom: 6px;
-    font-size: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .distribuidores__link-label {
+    font-size: 14px;
     font-weight: 700;
-    letter-spacing: 0.01em;
+    letter-spacing: .03em;
     text-transform: uppercase;
-    border-bottom: 1px solid rgb(255 255 255 / 0.5);
-    transition: border-color .25s ease;
+  }
+
+  .distribuidores__link-line {
+    height: 1.5px;
+    border-radius: 2px;
+    background: rgb(255 255 255 / 0.45);
+    transition: background-color .3s, box-shadow .3s;
   }
 
   .distribuidores__link-icon {
-    display: inline-flex;
+    flex: 0 0 auto;
+    display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
-    background-color: var(--color-white);
-    color: var(--color-primary);
-    transition: transform .35s cubic-bezier(.34, 1.56, .64, 1);
+    background: var(--color-white);
+    color: var(--dist-navy);
   }
 
-  @media (hover: hover) and (pointer: fine) {
-    .distribuidores__link:hover .distribuidores__link-text {
-      border-color: var(--color-white);
-    }
-
-    .distribuidores__link:hover .distribuidores__link-icon {
-      transform: rotate(45deg);
-    }
+  .distribuidores__link-icon svg {
+    transition: transform .4s cubic-bezier(.2, .8, .2, 1);
   }
 
-  @media (width < 64rem) {
+  .distribuidores__link:hover .distribuidores__link-line,
+  .distribuidores__link:focus-visible .distribuidores__link-line {
+    background: var(--color-white);
+    box-shadow: 0 0 10px rgb(190 230 255 / 0.85);
+  }
+
+  .distribuidores__link:hover .distribuidores__link-icon svg,
+  .distribuidores__link:focus-visible .distribuidores__link-icon svg {
+    transform: rotate(-45deg);
+  }
+
+  /* ---------- Mobile / tablet ---------- */
+  @media (max-width: 1099px) {
     .distribuidores {
-      grid-template-columns: 1fr;
-      grid-template-rows: auto auto auto auto;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto;
+      grid-template-areas: "intro" "stage" "list" "card" "cta";
+      height: auto;
+      min-height: 100vh;
     }
 
-    /* Apilado: intro → globo → riel (en fila, envolviendo) → tarjeta */
+    .distribuidores__stage {
+      grid-area: stage;
+      height: min(100vw, 560px);
+    }
+
     .distribuidores__intro {
-      grid-column: 1;
-      grid-row: 1;
-      max-width: none;
-    }
-
-    .distribuidores__globe {
-      position: relative;
-      grid-column: 1;
-      grid-row: 2;
-      left: auto;
-      top: auto;
-      translate: none;
-      width: min(80vw, 460px);
-      margin-inline: auto;
+      padding: 40px 20px 0;
     }
 
     .distribuidores__rail {
-      grid-column: 1;
-      grid-row: 3;
-      align-self: auto;
-      width: 100%;
-    }
-
-    /* Las 13 pastillas dejan paso al <select>: envolvían en 9 filas
-       irregulares (2·1·2·2·1·1·2·1·1 a 390px, con anchos de 116 a 235px) y
-       empujaban el globo fuera de pantalla. */
-    .distribuidores__rail-items {
       display: none;
     }
 
-    .distribuidores__select {
+    .distribuidores__mobile {
       display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 0 20px;
     }
 
-    /* El desplazamiento hacia el globo solo tiene sentido con el riel vertical */
-    .country-pill.is-active {
-      transform: none;
+    .distribuidores__mobile .distribuidores__total {
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+    }
+
+    .distribuidores__mobile .distribuidores__rail-count {
+      font-size: 32px;
+    }
+
+    .distribuidores__mobile .distribuidores__total-label {
+      font-size: 13px;
     }
 
     .distribuidores__panel {
-      grid-column: 1;
-      grid-row: 4;
-      justify-self: stretch;
-      width: 100%;
+      padding: 24px 20px;
+    }
+
+    .distribuidores__panel-stack {
+      max-width: none;
+    }
+
+    .distribuidores__cta-wrap {
+      justify-content: center;
+      padding: 8px 20px 56px;
+    }
+  }
+
+  @media (min-width: 640px) and (max-width: 1099px) {
+    .distribuidores__intro,
+    .distribuidores__mobile,
+    .distribuidores__panel,
+    .distribuidores__cta-wrap {
+      padding-left: 40px;
+      padding-right: 40px;
+    }
+
+    .country-panel__list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
     }
   }
 }

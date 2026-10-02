@@ -4,11 +4,12 @@
  * data-reveal-header) que tenía la sección: acá todo va en UN timeline con
  * tiempos absolutos, para que el orden se lea como una sola escena:
  *
- *   0.00  anillos: se expanden desde el centro, uno tras otro
- *   0.15  globo: aparece escalando y "enderezándose" (rotación -14° → 0)
+ *   0.00  planeta: aparece escalando desde el centro (órbitas y partículas
+ *         van en el mismo canvas, por eso no rota: giraría todo el fondo)
  *   0.35  kicker → título por líneas (máscara, SplitText) → bajada
- *   0.70  riel: el contador cuenta 0 → 13 y las pastillas caen en cascada
+ *   0.70  riel: el contador cuenta 0 → N y las pastillas caen en cascada
  *   0.95  tarjeta del país activo: sube y se asienta
+ *   1.20  enlace "Ver todos los distribuidores"
  *
  * Corre en el bootstrap (no es perezoso como el globo 3D): es liviano y
  * necesita armar el ScrollTrigger antes de que el usuario llegue. El globo
@@ -24,16 +25,16 @@ export function initDistribuidoresIntro(): void {
   const section = document.querySelector<HTMLElement>('[data-globe]');
   if (!section) return;
 
-  const rings = section.querySelectorAll<HTMLElement>('.distribuidores__rings span');
   const globe = section.querySelector<HTMLElement>('[data-globe-canvas]');
-  const kicker = section.querySelector<HTMLElement>('.distribuidores__intro .type-kicker');
+  const kicker = section.querySelector<HTMLElement>('.distribuidores__eyebrow');
   const title = section.querySelector<HTMLElement>('.distribuidores__title');
   const desc = section.querySelector<HTMLElement>('.distribuidores__desc');
-  const railHead = section.querySelector<HTMLElement>('.distribuidores__rail-head');
-  const count = section.querySelector<HTMLElement>('.distribuidores__rail-count');
+  const railHeads = section.querySelectorAll<HTMLElement>('.distribuidores__total');
+  const counts = section.querySelectorAll<HTMLElement>('.distribuidores__rail-count');
   const pills = section.querySelectorAll<HTMLElement>('.country-pill');
   const select = section.querySelector<HTMLElement>('.distribuidores__select');
   const panel = section.querySelector<HTMLElement>('.distribuidores__panel');
+  const cta = section.querySelector<HTMLElement>('.distribuidores__cta-wrap');
 
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
@@ -53,12 +54,9 @@ export function initDistribuidoresIntro(): void {
     onComplete: () => split?.revert(),
   });
 
-  // ---------- Fondo: anillos y globo ----------
-  if (rings.length) {
-    tl.from(rings, { scale: 0.35, autoAlpha: 0, duration: 1.6, ease: 'expo.out', stagger: 0.14 }, 0);
-  }
+  // ---------- Fondo: planeta ----------
   if (globe) {
-    tl.from(globe, { scale: 0.55, rotation: -14, autoAlpha: 0, duration: 1.7, ease: 'expo.out' }, 0.15);
+    tl.from(globe, { scale: 0.85, autoAlpha: 0, duration: 1.7, ease: 'expo.out' }, 0);
   }
 
   // ---------- Intro (columna izquierda) ----------
@@ -71,8 +69,9 @@ export function initDistribuidoresIntro(): void {
   if (desc) tl.from(desc, { y: 24, autoAlpha: 0, duration: 0.8 }, 0.8);
 
   // ---------- Riel de países (columna derecha) ----------
-  if (railHead) tl.from(railHead, { y: 16, autoAlpha: 0, duration: 0.7 }, 0.7);
-  if (count) {
+  // Dos cabeceras (riel desktop y bloque mobile); solo una se ve a la vez.
+  if (railHeads.length) tl.from(railHeads, { y: 16, autoAlpha: 0, duration: 0.7 }, 0.7);
+  counts.forEach((count) => {
     // Cuenta 0 → N sobre un proxy y escribe el entero en cada frame.
     const target = Number(count.textContent ?? 0);
     const proxy = { value: 0 };
@@ -84,7 +83,7 @@ export function initDistribuidoresIntro(): void {
         count.textContent = String(Math.round(proxy.value));
       },
     }, 0.75);
-  }
+  });
   if (pills.length) {
     tl.from(pills, { x: 28, autoAlpha: 0, duration: 0.7, stagger: 0.05, clearProps: 'transform' }, 0.85);
   }
@@ -92,4 +91,5 @@ export function initDistribuidoresIntro(): void {
 
   // ---------- Tarjeta del país activo ----------
   if (panel) tl.from(panel, { y: 48, scale: 0.96, autoAlpha: 0, duration: 1.1 }, 0.95);
+  if (cta) tl.from(cta, { y: 20, autoAlpha: 0, duration: 0.8 }, 1.2);
 }

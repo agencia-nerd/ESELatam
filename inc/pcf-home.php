@@ -102,15 +102,17 @@ add_action('acf/init', static function (): void {
                 'instructions' => __('Botón bajo la bajada. Escribe el texto del botón y la página o sección a la que lleva. Vacío: no se muestra. Si también quedan vacíos el titular, la bajada y la tarjeta flotante, el hero entero no se muestra.', 'ese-latam'),
             ]),
 
-            // ---------- Hero — video e isla ----------
-            $tab('home_hero_medios', __('Hero — video e isla', 'ese-latam')),
-            $campo('image', 'hero_video_poster', __('Imagen de respaldo del video del hero', 'ese-latam'), [
-                'instructions'  => __('Se ve a pantalla completa mientras el video carga y en dispositivos que no lo reproducen. Usa el primer cuadro del video. WebP o JPG · 1920×1080 px (16:9) · máx. 400 KB. Se recorta al centro. Solo se usa si hay video cargado. Vacía: mientras carga el video se ve el fondo azul oscuro del hero.', 'ese-latam'),
+            // ---------- Hero — fondo e isla ----------
+            // hero_video_poster conserva su nombre (y lo ya cargado) aunque
+            // ahora es el fondo del hero: el video se retiró por rendimiento.
+            $tab('home_hero_medios', __('Hero — fondo e isla', 'ese-latam')),
+            $campo('image', 'hero_video_poster', __('Imagen de fondo del hero', 'ese-latam'), [
+                'instructions'  => __('Paisaje a pantalla completa detrás del titular y de la isla. Es lo primero que carga la portada, así que cuida el peso. WebP o JPG · 2560×1440 px (16:9) · máx. 300 KB. En pantallas angostas se recorta a los costados. Vacía: se usa el cielo con montañas del diseño.', 'ese-latam'),
                 'return_format' => 'url',
                 'preview_size'  => 'medium',
             ]),
-            $campo('image', 'hero_isla', __('Isla flotante sobre el video', 'ese-latam'), [
-                'instructions'  => __('La ilustración que aparece flotando abajo a la derecha al bajar con el scroll. PNG o WebP con fondo transparente · 2400 px de ancho, apaisada (como 2400×1350) · máx. 500 KB. WordPress genera solo los tamaños chicos para móvil. Una imagen más cuadrada se muestra más chica para no chocar con el menú. Vacía: no se muestra la isla.', 'ese-latam'),
+            $campo('image', 'hero_isla', __('Isla flotante sobre el fondo', 'ese-latam'), [
+                'instructions'  => __('La ilustración que flota a la derecha del titular (centrada en celulares). PNG o WebP con fondo transparente y recortada al dibujo, sin márgenes vacíos · 1600 px de ancho · máx. 300 KB. WordPress genera solo los tamaños chicos para móvil. Una imagen más cuadrada se muestra más chica para no chocar con el menú. Vacía: se usa la isla con contenedores del diseño.', 'ese-latam'),
                 'return_format' => 'id',
                 'preview_size'  => 'medium',
             ]),
@@ -120,11 +122,6 @@ add_action('acf/init', static function (): void {
                 'max'          => 3000,
                 'append'       => 'px',
                 'wrapper'      => ['width' => '40'],
-            ]),
-            $campo('file', 'hero_video', __('Video de fondo del hero', 'ese-latam'), [
-                'instructions'  => __('Ocupa toda la pantalla detrás del titular y avanza al ritmo del scroll. MP4 (H.264) · 1920×1080 px · hasta 20 s · máx. 8 MB, sin audio. Se recorta al centro. Vacío: el hero queda con fondo azul oscuro liso.', 'ese-latam'),
-                'return_format' => 'url',
-                'mime_types'    => 'mp4,webm',
             ]),
 
             // ---------- Hero — tarjeta flotante ----------

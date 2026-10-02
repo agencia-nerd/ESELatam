@@ -1,547 +1,747 @@
 /**
- * Globo 3D interactivo de la sección Distribuidores.
+ * Planeta 3D de la sección Distribuidores (front-page.php).
  *
- * Textura realista de la Tierra (día + specular + normal, assets oficiales
- * de los ejemplos de Three.js) con tinte de marca aplicado vía luces de
- * color en vez de un shader propio — más simple y sostenible.
+ * Textura de la Tierra con las fronteras dibujadas encima (topología
+ * world-atlas 110m) y los países conectados remarcados. Alrededor: halo de
+ * atmósfera, órbitas con satélites, partículas y bokeh — todo dentro del
+ * mismo canvas, que ocupa la sección entera (el encuadre corre el planeta a
+ * la derecha con `setViewOffset`).
  *
- * Dos formas de interacción, que conviven:
- *  - Arrastre libre con el cursor/dedo: rota el globo como una esfera real,
- *    con inercia al soltar (decae hasta detenerse).
- *  - `focusCountry(slug)`, disparado desde la lista de países: gira el
- *    grupo con GSAP hasta que el país señalado queda de frente a cámara.
- * Cualquiera de las dos interrumpe a la otra.
+ * Interacción:
+ *  - Arrastre SOLO horizontal, acotado a la franja de Latinoamérica (con
+ *    rebote elástico al pasarse) e inercia al soltar.
+ *  - `focusCountry(slug)`: gira hasta el país, inclina hacia su latitud, lo
+ *    ilumina (mapa emisivo) y lo señala con un pulso y un tooltip fijo.
+ *  - Hover sobre un país conectado → tooltip con su nombre; clic → lo elige
+ *    (y deja una onda donde se tocó). El país se detecta por su polígono con
+ *    un mapa de IDs pintado offscreen; sin código ISO, por su marcador.
  *
- * En reposo el globo no da la vuelta completa: hace un BARRIDO pendular
- * sobre la franja de longitudes donde están los países conectados (de
- * México a Uruguay, con margen), así el frente nunca se queda mostrando
- * océano o continentes sin marcadores. El barrido arranca unos segundos
- * después de la última interacción y se funde suavemente desde la
- * orientación en la que quedó el globo.
+ * No dibuja mientras la sección está fuera de pantalla o la pestaña oculta.
  */
 
 import {
-  Scene,
-  PerspectiveCamera,
-  WebGLRenderer,
-  Color,
-  Mesh,
-  SphereGeometry,
-  MeshPhongMaterial,
-  MeshBasicMaterial,
-  DirectionalLight,
-  HemisphereLight,
-  TextureLoader,
-  Group,
-  Vector3,
-  Vector2,
-  Quaternion,
+  AdditiveBlending,
+  AddEquation,
+  BackSide,
+  BufferAttribute,
+  BufferGeometry,
+  CanvasTexture,
   Clock,
+  Color,
+  CustomBlending,
+  DirectionalLight,
+  Group,
+  HemisphereLight,
+  Line,
+  LineBasicMaterial,
+  LineDashedMaterial,
+  Material,
+  Mesh,
+  MeshStandardMaterial,
+  OneFactor,
+  PerspectiveCamera,
+  Points,
+  PointsMaterial,
   Raycaster,
+  Scene,
+  ShaderMaterial,
+  SphereGeometry,
+  Sprite,
+  SpriteMaterial,
+  SRGBColorSpace,
+  Texture,
+  Vector2,
+  Vector3,
+  WebGLRenderer,
+  ACESFilmicToneMapping,
 } from 'three';
-import { gsap } from '../lib/gsap';
+import { feature } from 'topojson-client';
+import type { Topology, GeometryCollection } from 'topojson-specification';
+import type { Geometry } from 'geojson';
 
-// CAMERA_Z se eligió para que la esfera (RADIUS) quepa entera dentro del
-// frustum del canvas con margen: el semi-ángulo aparente de la esfera
-// (asin(RADIUS / CAMERA_Z)) debe quedar por debajo del semi-FOV de cámara,
-// si no la esfera se recorta contra los bordes del canvas.
-const RADIUS = 1.6;
-// 4.9 → semi-ángulo aparente 19.1° frente al semi-FOV de 21°: la esfera
-// llena ~91% del canvas (con 5.2 llenaba ~85%). Más cerca y se recorta.
-const CAMERA_Z = 4.9;
-const NAV_DURATION = 1.8;
-
-// Barrido en reposo: la longitud de frente oscila (seno) entre los extremos
-// de los países conectados ± margen. Con 22 s por ida y vuelta sobre ~60°
-// la velocidad pico ronda 0.15 rad/s — el triple del giro continuo anterior
-// (0.05 rad/s), que se sentía detenido. La latitud también respira un poco.
-const IDLE_PERIOD = 22; // s por ciclo completo (ida y vuelta)
-const IDLE_LNG_MARGIN = 2; // grados de aire más allá del país más al oeste / este
-const IDLE_LAT_AMPLITUDE = 5; // grados de vaivén vertical
-const IDLE_LAT_PERIOD = 9; // s
-const IDLE_BLEND = 2.2; // 1/s — cuánto "persigue" el globo al barrido tras una interacción
-const IDLE_RESUME_DELAY = 2.5; // s de espera tras soltar / tras llegar a un país
-const DRAG_SENSITIVITY = 0.006; // rad por px arrastrado
-const INERTIA_DAMPING_PER_SEC = 0.06; // fracción de velocidad que sobrevive cada segundo
-const INERTIA_MIN_SPEED = 0.001; // rad/s por debajo del cual se detiene la inercia
-
-const Y_AXIS = new Vector3(0, 1, 0);
-const X_AXIS = new Vector3(1, 0, 0);
+// Giro horizontal permitido (grados). Se amplía solo si algún país cargado
+// queda fuera de la franja, para que siempre se pueda llegar a él.
+const ROT_MIN = -60;
+const ROT_MAX = 30;
+const D2R = Math.PI / 180;
+// Ancho de las texturas auxiliares (rugosidad / emisivo) y del mapa de IDs.
+const AUX_W = 2048;
+const ID_W = 1024;
 
 export interface GlobeCountry {
   slug: string;
   name: string;
   lat: number;
   lng: number;
-}
-
-export interface GlobeHandle {
-  focusCountry: (slug: string) => void;
-  destroy: () => void;
+  /** ISO 3166-1 numérico de 3 dígitos; vacío si no se conoce. */
+  iso: string;
 }
 
 export interface GlobeTextures {
   map: string;
-  specularMap: string;
-  normalMap: string;
+  topology: string;
 }
 
-/** Convierte lat/lng a un punto sobre la esfera (convención estándar de mapeo equirectangular). */
-function latLngToVector3(lat: number, lng: number, radius: number): Vector3 {
-  const phi = (90 - lat) * (Math.PI / 180);
-  const theta = (lng + 180) * (Math.PI / 180);
-  return new Vector3(
-    -radius * Math.sin(phi) * Math.cos(theta),
-    radius * Math.cos(phi),
-    radius * Math.sin(phi) * Math.sin(theta),
-  );
+export interface GlobeUI {
+  hoverTip: HTMLElement | null;
+  selTip: HTMLElement | null;
+  selTipLabel: HTMLElement | null;
 }
 
-/** Cuaternión absoluto que deja el punto `local` (fijo en espacio del grupo) mirando a +Z. */
-function quaternionFacingCamera(local: Vector3): Quaternion {
-  const rotY = Math.atan2(-local.x, local.z);
-  const qY = new Quaternion().setFromAxisAngle(Y_AXIS, rotY);
-
-  const rXZ = Math.sqrt(local.x * local.x + local.z * local.z);
-  const rotX = Math.atan2(local.y, rXZ);
-  const qX = new Quaternion().setFromAxisAngle(X_AXIS, rotX);
-
-  return qX.multiply(qY); // aplica qY primero, luego qX
+export interface GlobeHandle {
+  focusCountry: (slug: string, fromTap?: boolean) => void;
+  destroy: () => void;
 }
 
-/** Lat/lng (grados) del punto del globo que hoy mira a cámara (+Z de mundo). */
-function facingLatLng(groupQuat: Quaternion): { lat: number; lng: number } {
-  const local = new Vector3(0, 0, 1).applyQuaternion(groupQuat.clone().invert()).normalize();
-  const lat = 90 - (Math.acos(Math.max(-1, Math.min(1, local.y))) * 180) / Math.PI;
-  let lng = (Math.atan2(local.z, -local.x) * 180) / Math.PI - 180;
-  if (lng < -180) lng += 360;
-  return { lat, lng };
+type Ring = number[][];
+
+const makeCanvas = (w: number, h: number): HTMLCanvasElement => {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  return c;
+};
+
+const ctx2d = (c: HTMLCanvasElement, opts?: CanvasRenderingContext2DSettings): CanvasRenderingContext2D => {
+  const x = c.getContext('2d', opts);
+  if (!x) throw new Error('Canvas 2D no disponible');
+  return x;
+};
+
+const loadImage = (src: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`No se pudo cargar ${src}`));
+    img.src = src;
+  });
+
+/** Punto unitario de la esfera para lat/lng (mismo mapeo UV que SphereGeometry). */
+const ll2v = (lat: number, lng: number): Vector3 => {
+  const la = lat * D2R;
+  const lo = lng * D2R;
+  return new Vector3(Math.cos(la) * Math.cos(lo), Math.sin(la), -Math.cos(la) * Math.sin(lo));
+};
+
+/** Dibuja un polígono GeoJSON en proyección equirectangular (corrige el antimeridiano). */
+function trace(ctx: CanvasRenderingContext2D, geom: Geometry, W: number, H: number): void {
+  const polys: Ring[][] =
+    geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
+
+  for (const poly of polys) {
+    for (const ring of poly) {
+      let cross = false;
+      let maxLat = -90;
+      for (let k = 0; k < ring.length; k++) {
+        if (k && Math.abs(ring[k][0] - ring[k - 1][0]) > 180) cross = true;
+        maxLat = Math.max(maxLat, ring[k][1]);
+      }
+
+      let pts = ring;
+      let offs = [0];
+      if (cross && maxLat > -55) {
+        let off = 0;
+        pts = [ring[0]];
+        for (let k = 1; k < ring.length; k++) {
+          const dl = ring[k][0] - ring[k - 1][0];
+          if (dl > 180) off -= 360;
+          else if (dl < -180) off += 360;
+          pts.push([ring[k][0] + off, ring[k][1]]);
+        }
+        offs = [-W, 0, W];
+      }
+
+      for (const o of offs) {
+        pts.forEach((p, k) => {
+          const x = ((p[0] + 180) / 360) * W + o;
+          const y = ((90 - p[1]) / 180) * H;
+          if (k) ctx.lineTo(x, y);
+          else ctx.moveTo(x, y);
+        });
+        ctx.closePath();
+      }
+    }
+  }
 }
 
-export function initGlobeScene(
+const traceAll = (ctx: CanvasRenderingContext2D, geoms: (Geometry | undefined)[], W: number, H: number): void => {
+  ctx.beginPath();
+  geoms.forEach((g) => g && trace(ctx, g, W, H));
+};
+
+export async function initGlobeScene(
   container: HTMLElement,
   countries: GlobeCountry[],
   textures: GlobeTextures,
-  defaultSlug?: string,
+  ui: GlobeUI,
+  isNarrow: () => boolean,
   onCountryClick?: (slug: string) => void,
-): GlobeHandle {
-  const scene = new Scene();
+): Promise<GlobeHandle> {
+  const [world, diffImg] = await Promise.all([
+    fetch(textures.topology).then((r) => {
+      if (!r.ok) throw new Error(`topology ${r.status}`);
+      return r.json() as Promise<Topology<{ countries: GeometryCollection; land: GeometryCollection }>>;
+    }),
+    loadImage(textures.map),
+  ]);
 
-  const camera = new PerspectiveCamera(
-    42,
-    container.clientWidth / Math.max(container.clientHeight, 1),
-    0.1,
-    100,
-  );
-  camera.position.set(0, 0, CAMERA_Z);
+  const worldCountries = feature(world, world.objects.countries).features;
+  const landGeoms = feature(world, world.objects.land).features.map((f) => f.geometry);
+  const byIso = new Map<string, Geometry>();
+  worldCountries.forEach((f) => byIso.set(String(f.id).padStart(3, '0'), f.geometry));
+  const feats = countries.map((c) => (c.iso ? byIso.get(c.iso) : undefined));
+
+  // ---------- Texturas ----------
+  // Color: imagen + todas las fronteras suaves + las de los países conectados más marcadas.
+  const big = Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) > 2000;
+  const W = big ? 4096 : 2048;
+  const H = W / 2;
+  const colorCanvas = makeCanvas(W, H);
+  const cx = ctx2d(colorCanvas);
+  cx.filter = 'saturate(1.12) contrast(1.04)';
+  cx.imageSmoothingQuality = 'high';
+  cx.drawImage(diffImg, 0, 0, W, H);
+  cx.filter = 'none';
+  traceAll(cx, worldCountries.map((f) => f.geometry), W, H);
+  cx.lineWidth = 1.6;
+  cx.strokeStyle = 'rgba(230,255,235,0.2)';
+  cx.stroke();
+  traceAll(cx, feats, W, H);
+  cx.lineWidth = 2.4;
+  cx.strokeStyle = 'rgba(255,255,255,0.45)';
+  cx.stroke();
+
+  // Rugosidad: mar brillante, tierra mate.
+  const roughCanvas = makeCanvas(AUX_W, AUX_W / 2);
+  const rx = ctx2d(roughCanvas);
+  rx.fillStyle = 'rgb(62,62,62)';
+  rx.fillRect(0, 0, AUX_W, AUX_W / 2);
+  traceAll(rx, landGeoms, AUX_W, AUX_W / 2);
+  rx.fillStyle = 'rgb(242,242,242)';
+  rx.fill('evenodd');
+
+  // Emisivo: se repinta con el país seleccionado en focusCountry().
+  const emCanvas = makeCanvas(AUX_W, AUX_W / 2);
+  const ex = ctx2d(emCanvas);
+  ex.fillStyle = '#000';
+  ex.fillRect(0, 0, AUX_W, AUX_W / 2);
+
+  // Mapa de IDs para detectar el país bajo el puntero: índice+1 repartido en
+  // R y G de a pasos de 16 (tolera el antialias de los bordes al redondear).
+  const ID_H = ID_W / 2;
+  const idCanvas = makeCanvas(ID_W, ID_H);
+  const ix = ctx2d(idCanvas, { willReadFrequently: true });
+  ix.fillStyle = '#000';
+  ix.fillRect(0, 0, ID_W, ID_H);
+  feats.forEach((g, i) => {
+    if (!g) return;
+    const n = i + 1;
+    traceAll(ix, [g], ID_W, ID_H);
+    ix.fillStyle = `rgb(${(n % 16) * 16},${Math.floor(n / 16) * 16},0)`;
+    ix.fill('evenodd');
+  });
+  const idData = ix.getImageData(0, 0, ID_W, ID_H).data;
+
+  // ---------- Escena ----------
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  const pixelRatio = (): number => Math.min(window.devicePixelRatio || 1, isNarrow() || coarse ? 1.5 : 2);
 
   const renderer = new WebGLRenderer({ antialias: true, alpha: true });
-  // Táctil: DPR 1.5 y esfera de 48 segmentos — mitad de píxeles a sombrear
-  // en pantallas de DPR 3 sin diferencia visible en un globo de ~460px.
-  const coarse = window.matchMedia('(pointer: coarse)').matches;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarse ? 1.5 : 2));
-  renderer.setSize(container.clientWidth, container.clientHeight);
+  renderer.setPixelRatio(pixelRatio());
+  renderer.outputColorSpace = SRGBColorSpace;
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
   container.appendChild(renderer.domElement);
+  const el = renderer.domElement;
+  const aniso = renderer.capabilities.getMaxAnisotropy();
+  const textureList: Texture[] = [];
+  const tex = (c: HTMLCanvasElement, srgb: boolean): CanvasTexture => {
+    const t = new CanvasTexture(c);
+    if (srgb) t.colorSpace = SRGBColorSpace;
+    t.anisotropy = aniso;
+    textureList.push(t);
+    return t;
+  };
 
-  const loader = new TextureLoader();
-  const dayMap = loader.load(textures.map);
-  const specularMap = loader.load(textures.specularMap);
-  const normalMap = loader.load(textures.normalMap);
+  const scene = new Scene();
+  const camera = new PerspectiveCamera(32, 1, 0.1, 100);
+  scene.add(new HemisphereLight(0xeaf5ff, 0x0a2058, 0.9));
+  const sun = new DirectionalLight(0xfff4dc, 2.4);
+  sun.position.set(-3, 2.2, 4);
+  scene.add(sun);
+  const rim = new DirectionalLight(0x8fd0ff, 0.9);
+  rim.position.set(4, 1, -3);
+  scene.add(rim);
 
-  const group = new Group();
-  scene.add(group);
+  const rootG = new Group();
+  const tilt = new Group();
+  const spin = new Group();
+  scene.add(rootG);
+  rootG.add(tilt);
+  tilt.add(spin);
 
-  const geometry = new SphereGeometry(RADIUS, coarse ? 48 : 64, coarse ? 48 : 64);
-  const material = new MeshPhongMaterial({
-    map: dayMap,
-    specularMap,
-    normalMap,
-    // Relieve suave: la textura cartoon (tools/globo-cartoon.py) ya trae
-    // el color plano; el normal map solo insinúa las cordilleras.
-    normalScale: new Vector2(0.45, 0.45),
-    specular: new Color(0x2a6a94),
-    shininess: 16,
+  const emTex = tex(emCanvas, true);
+  const globeMat = new MeshStandardMaterial({
+    map: tex(colorCanvas, true),
+    roughnessMap: tex(roughCanvas, false),
+    roughness: 1,
+    metalness: 0,
+    emissive: 0xffffff,
+    emissiveMap: emTex,
+    emissiveIntensity: 0.7,
   });
-  const globeMesh = new Mesh(geometry, material);
-  group.add(globeMesh);
+  const globe = new Mesh(new SphereGeometry(1, 96, 64), globeMat);
+  spin.add(globe);
 
-  // Tinte de marca vía luces de color en vez de shader propio, pensado para
-  // que quede LUMINOSO: un hemisphere light (celeste arriba / navy abajo)
-  // como base pareja en vez de un ambient plano y oscuro, más un key light
-  // frontal blanco-celeste que da brillo sin generar un punto especular
-  // duro (shininess bajo = reflejo amplio y suave, no un "glare").
-  // Hemisferio casi neutro: con la textura cartoon, el navy de abajo que
-  // usaba la textura realista teñía los verdes de turquesa.
-  scene.add(new HemisphereLight(0xf4fbff, 0x7fb6e6, 1.7));
-  const keyLight = new DirectionalLight(0xffffff, 1.5);
-  keyLight.position.set(2.5, 2, 5);
-  scene.add(keyLight);
-  const rimLight = new DirectionalLight(0x8eb952, 0.5);
-  rimLight.position.set(-4, 1, -2);
-  scene.add(rimLight);
-
-  // Marcadores: punto sólido + halo translúcido por país, hijos del grupo
-  // para heredar su rotación junto con la esfera.
-  const dots = new Map<string, Mesh>();
-  const halos = new Map<string, Mesh>();
-  const ACTIVE_COLOR = new Color(0x8eb952);
-  const IDLE_COLOR = new Color(0xffffff);
-
-  countries.forEach((c) => {
-    const pos = latLngToVector3(c.lat, c.lng, RADIUS * 1.01);
-
-    const dot = new Mesh(
-      new SphereGeometry(0.026, 12, 12),
-      new MeshBasicMaterial({ color: IDLE_COLOR.clone() }),
-    );
-    dot.position.copy(pos);
-    dot.userData.slug = c.slug;
-    group.add(dot);
-    dots.set(c.slug, dot);
-
-    // Radio más generoso que el punto visible: además de brillar en el país
-    // activo, sirve de área de impacto más cómoda para el hover del tooltip.
-    const halo = new Mesh(
-      new SphereGeometry(0.065, 12, 12),
-      new MeshBasicMaterial({ color: 0x8eb952, transparent: true, opacity: 0 }),
-    );
-    halo.position.copy(pos);
-    halo.userData.slug = c.slug;
-    group.add(halo);
-    halos.set(c.slug, halo);
+  // Marcadores: un punto blanco por país.
+  const markerCanvas = makeCanvas(64, 64);
+  const mx = ctx2d(markerCanvas);
+  const mg = mx.createRadialGradient(32, 32, 14, 32, 32, 32);
+  mg.addColorStop(0, 'rgba(5,30,90,0.35)');
+  mg.addColorStop(1, 'rgba(5,30,90,0)');
+  mx.fillStyle = mg;
+  mx.fillRect(0, 0, 64, 64);
+  mx.fillStyle = '#ffffff';
+  mx.beginPath();
+  mx.arc(32, 32, 15, 0, Math.PI * 2);
+  mx.fill();
+  const markerTex = tex(markerCanvas, true);
+  const markers = countries.map((c, i) => {
+    const sp = new Sprite(new SpriteMaterial({ map: markerTex, transparent: true, depthWrite: false }));
+    sp.position.copy(ll2v(c.lat, c.lng).multiplyScalar(1.008));
+    sp.scale.setScalar(0.05);
+    sp.userData.index = i;
+    spin.add(sp);
+    return sp;
   });
 
-  const setActiveMarker = (slug: string): void => {
-    dots.forEach((dot, key) => {
-      const isActive = key === slug;
-      const mat = dot.material as MeshBasicMaterial;
-      const targetColor = isActive ? ACTIVE_COLOR : IDLE_COLOR;
-      gsap.to(mat.color, { r: targetColor.r, g: targetColor.g, b: targetColor.b, duration: 0.4, overwrite: true });
-      gsap.to(dot.scale, {
-        x: isActive ? 1.7 : 1,
-        y: isActive ? 1.7 : 1,
-        z: isActive ? 1.7 : 1,
-        duration: 0.5,
-        ease: 'back.out(2)',
-        overwrite: true,
-      });
-    });
-    halos.forEach((halo, key) => {
-      const mat = halo.material as MeshBasicMaterial;
-      gsap.to(mat, { opacity: key === slug ? 0.45 : 0, duration: 0.4, overwrite: true });
-    });
+  // Efectos sobre la superficie: borde, ondas al tocar y pulso del país elegido.
+  const acc = new Color('#d4f1ff');
+  const U = {
+    uTime: { value: 0 },
+    uAcc: { value: new Vector3(acc.r, acc.g, acc.b) },
+    uRim: { value: new Vector3(0.7, 0.88, 1.0) },
+    uRimI: { value: 0.26 },
+    uRip: { value: [0, 1, 2, 3].map(() => new Vector3(0, 0, 1)) },
+    uRipT: { value: [-1, -1, -1, -1] },
+    uSel: { value: new Vector3(0, 0, 1) },
+    uSelOn: { value: 0 },
   };
+  const addBlend = {
+    transparent: true,
+    depthWrite: false,
+    blending: CustomBlending,
+    blendEquation: AddEquation,
+    blendSrc: OneFactor,
+    blendDst: OneFactor,
+    blendSrcAlpha: OneFactor,
+    blendDstAlpha: OneFactor,
+  } as const;
 
-  const navProxy = { t: 0 };
-  let startQuat = group.quaternion.clone();
-  // true mientras el tween de focusCountry manda sobre el quaternion: en ese
-  // lapso el giro automático se detiene (si no, el slerp lo pisaría cada
-  // cuadro y el país quedaría "temblando").
-  let navigating = false;
-  const autoSpin = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  spin.add(new Mesh(new SphereGeometry(1.004, 96, 64), new ShaderMaterial({
+    uniforms: U,
+    ...addBlend,
+    vertexShader: `varying vec3 vL; varying vec3 vN; varying vec3 vV;
+      void main(){ vL = normalize(position); vN = normalize(normalMatrix*normal);
+      vec4 mv = modelViewMatrix*vec4(position,1.0); vV = -mv.xyz; gl_Position = projectionMatrix*mv; }`,
+    fragmentShader: `uniform float uTime; uniform vec3 uAcc; uniform vec3 uRim; uniform float uRimI;
+      uniform vec3 uRip[4]; uniform float uRipT[4]; uniform vec3 uSel; uniform float uSelOn;
+      varying vec3 vL; varying vec3 vN; varying vec3 vV;
+      float ang(vec3 a, vec3 b){ return acos(clamp(dot(a,b),-1.0,1.0)); }
+      void main(){
+        vec3 n = normalize(vL);
+        float fres = pow(1.0 - max(dot(normalize(vN), normalize(vV)), 0.0), 3.0);
+        vec3 col = uRim * fres * uRimI;
+        float lat = asin(n.y); float lon = atan(n.z, n.x);
+        vec2 gv = vec2(lon, lat) * (110.0/3.14159);
+        float dots = smoothstep(0.2, 0.06, length(fract(gv) - 0.5));
+        for (int i = 0; i < 4; i++) {
+          float t = uRipT[i];
+          if (t >= 0.0 && t < 2.2) {
+            float d = ang(n, uRip[i]);
+            float r = 0.03 + t * 0.5;
+            float ring = exp(-pow((d - r) / 0.006, 2.0));
+            float ring2 = exp(-pow((d - r * 0.62) / 0.004, 2.0)) * 0.25;
+            float trail = smoothstep(r - 0.32, r, d) * step(d, r);
+            float fade = pow(1.0 - t / 2.2, 1.6);
+            col += uAcc * (ring * 0.75 + ring2 + trail * dots * 0.22) * fade;
+            col += vec3(0.9, 1.0, 0.85) * exp(-d * d * 900.0) * exp(-t * 6.0) * 0.35;
+          }
+        }
+        if (uSelOn > 0.001) {
+          float d = ang(n, uSel);
+          float core = exp(-pow(d / 0.011, 2.0));
+          float p1 = fract(uTime * 0.45); float p2 = fract(uTime * 0.45 + 0.5);
+          float pulse = exp(-pow((d - p1 * 0.16) / 0.003, 2.0)) * (1.0 - p1) + exp(-pow((d - p2 * 0.16) / 0.003, 2.0)) * (1.0 - p2);
+          float halo = exp(-pow(d / 0.06, 2.0)) * 0.18;
+          col += uAcc * (core * 1.6 + pulse * 1.1 + halo) * uSelOn;
+        }
+        col = clamp(col, 0.0, 1.0); gl_FragColor = vec4(col, max(col.r, max(col.g, col.b)));
+      }`,
+  })));
 
-  // ---------- Barrido en reposo ----------
-  // Franja de longitudes/latitudes que cubre a todos los países conectados.
-  const lngs = countries.map((c) => c.lng);
-  const lats = countries.map((c) => c.lat);
-  const idleLngMin = Math.min(...lngs) - IDLE_LNG_MARGIN;
-  const idleLngMax = Math.max(...lngs) + IDLE_LNG_MARGIN;
-  const idleLngCenter = (idleLngMin + idleLngMax) / 2;
-  const idleLngHalf = (idleLngMax - idleLngMin) / 2;
-  const idleLatCenter = (Math.min(...lats) + Math.max(...lats)) / 2;
-  let idleTime = 0; // s dentro del ciclo del seno
-  let idlePhase = 0; // fase inicial, alineada con la orientación al retomar
-  let idleWait = 0; // s que faltan para retomar el barrido
-  let idleArmed = false; // true una vez alineada la fase tras la última interacción
-  const idleTarget = new Quaternion();
+  // Línea de atmósfera sutil.
+  rootG.add(new Mesh(new SphereGeometry(1.055, 64, 48), new ShaderMaterial({
+    side: BackSide,
+    ...addBlend,
+    vertexShader: `varying vec3 vN; varying vec3 vV; void main(){ vN = normalize(normalMatrix*normal);
+      vec4 mv = modelViewMatrix*vec4(position,1.0); vV = -mv.xyz; gl_Position = projectionMatrix*mv; }`,
+    fragmentShader: `varying vec3 vN; varying vec3 vV; void main(){
+      float d = dot(normalize(vN), normalize(vV));
+      float line = exp(-pow((d + 0.02) / 0.014, 2.0)) * 0.42;
+      float haze = pow(clamp(-d / 0.32, 0.0, 1.0), 2.2) * 0.14;
+      float a = clamp(line + haze, 0.0, 1.0); gl_FragColor = vec4(vec3(0.85, 0.94, 1.0) * a, a); }`,
+  })));
 
-  // Pausa el barrido y deja programada su vuelta, alineada con donde quede el globo.
-  const pauseIdle = (delay = IDLE_RESUME_DELAY): void => {
-    idleWait = delay;
-    idleArmed = false;
-  };
+  // Partículas de fondo y bokeh.
+  const particleCanvas = makeCanvas(64, 64);
+  const px = ctx2d(particleCanvas);
+  const pg = px.createRadialGradient(32, 32, 0, 32, 32, 32);
+  pg.addColorStop(0, 'rgba(255,255,255,1)');
+  pg.addColorStop(0.4, 'rgba(255,255,255,0.35)');
+  pg.addColorStop(1, 'rgba(255,255,255,0)');
+  px.fillStyle = pg;
+  px.fillRect(0, 0, 64, 64);
+  const particleTex = tex(particleCanvas, true);
 
-  // Elige la fase del seno para que lng(t) arranque en la longitud que hoy
-  // mira a cámara (acotada a la franja) y avance hacia el extremo más lejano
-  // — así la retoma es continua, sin salto.
-  const armIdle = (): void => {
-    const { lng } = facingLatLng(group.quaternion);
-    const u = Math.max(-1, Math.min(1, (lng - idleLngCenter) / idleLngHalf));
-    idlePhase = u > 0 ? Math.PI - Math.asin(u) : Math.asin(u);
-    idleTime = 0;
-    idleArmed = true;
-  };
-
-  // Velocidad angular (rad/s) de la inercia tras soltar el arrastre —
-  // consultada y decaída cuadro a cuadro en el loop de render.
-  const inertia = { x: 0, y: 0 };
-
-  const focusCountry = (slug: string): void => {
-    const country = countries.find((c) => c.slug === slug);
-    if (!country) return;
-
-    setActiveMarker(slug);
-
-    // El clic en la lista tiene prioridad: corta cualquier arrastre/inercia
-    // en curso para que no compitan por el quaternion del grupo.
-    inertia.x = 0;
-    inertia.y = 0;
-
-    const targetQuat = quaternionFacingCamera(latLngToVector3(country.lat, country.lng, 1));
-    startQuat = group.quaternion.clone();
-    navProxy.t = 0;
-
-    gsap.killTweensOf(navProxy);
-    navigating = true;
-    gsap.to(navProxy, {
-      t: 1,
-      duration: NAV_DURATION,
-      ease: 'power2.inOut',
-      onUpdate: () => group.quaternion.slerpQuaternions(startQuat, targetQuat, navProxy.t),
-      // onInterrupt cubre el killTweensOf de un arrastre o de otra selección.
-      onComplete: () => { navigating = false; pauseIdle(); },
-      onInterrupt: () => { navigating = false; },
-    });
-    pauseIdle(NAV_DURATION + IDLE_RESUME_DELAY);
-  };
-
-  // Orientación inicial: sin animación, ya mirando al país activo por defecto.
-  const initialSlug = defaultSlug ?? countries[0]?.slug;
-  if (initialSlug) {
-    const initial = countries.find((c) => c.slug === initialSlug);
-    if (initial) {
-      group.quaternion.copy(quaternionFacingCamera(latLngToVector3(initial.lat, initial.lng, 1)));
-      setActiveMarker(initialSlug);
-    }
+  const N = coarse ? 400 : 700;
+  const pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const v = new Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1)
+      .normalize()
+      .multiplyScalar(3 + Math.random() * 9);
+    if (v.z > 1.2) v.z = -v.z;
+    pos.set([v.x, v.y, v.z], i * 3);
   }
+  const pgeo = new BufferGeometry();
+  pgeo.setAttribute('position', new BufferAttribute(pos, 3));
+  const parts = new Points(pgeo, new PointsMaterial({
+    size: 0.06, map: particleTex, color: 0xd6ecff, transparent: true, opacity: 0.35, depthWrite: false, blending: AdditiveBlending,
+  }));
+  scene.add(parts);
 
-  // ---------- Arrastre libre (trackball) + inercia ----------
-  const canvasEl = renderer.domElement;
-  canvasEl.style.touchAction = 'none';
-  canvasEl.style.cursor = 'grab';
+  const BN = 90;
+  const bpos = new Float32Array(BN * 3);
+  for (let i = 0; i < BN; i++) bpos.set([(Math.random() - 0.5) * 14, (Math.random() - 0.5) * 9, -2 - Math.random() * 6], i * 3);
+  const bgeo = new BufferGeometry();
+  bgeo.setAttribute('position', new BufferAttribute(bpos, 3));
+  const bokeh = new Points(bgeo, new PointsMaterial({
+    size: 0.32, map: particleTex, color: 0xcfe8ff, transparent: true, opacity: 0.14, depthWrite: false, blending: AdditiveBlending,
+  }));
+  scene.add(bokeh);
 
-  let dragging = false;
+  // Órbitas de fondo, tres con un satélite.
+  const orbits = new Group();
+  orbits.position.z = -0.35;
+  scene.add(orbits);
+  const orbitDots: { dot: Sprite; r: number; sp: number; ph: number }[] = [];
+  ([[1.38, 0.2, false], [1.72, 0.14, true], [2.12, 0.1, false], [2.62, 0.06, false]] as const).forEach(([r, op, dashed], i) => {
+    const pts: Vector3[] = [];
+    for (let k = 0; k <= 256; k++) {
+      const a = (k / 256) * Math.PI * 2;
+      pts.push(new Vector3(Math.cos(a) * r, Math.sin(a) * r, 0));
+    }
+    const g = new BufferGeometry().setFromPoints(pts);
+    const m = dashed
+      ? new LineDashedMaterial({ color: 0xe6f3ff, transparent: true, opacity: op, dashSize: 0.03, gapSize: 0.05, depthWrite: false })
+      : new LineBasicMaterial({ color: 0xe6f3ff, transparent: true, opacity: op, depthWrite: false });
+    const line = new Line(g, m);
+    if (dashed) line.computeLineDistances();
+    orbits.add(line);
+    if (i < 3) {
+      const dot = new Sprite(new SpriteMaterial({
+        map: particleTex, color: 0xffffff, transparent: true, opacity: 0.55 - i * 0.12, depthWrite: false, blending: AdditiveBlending,
+      }));
+      dot.scale.setScalar(0.09 - i * 0.015);
+      orbits.add(dot);
+      orbitDots.push({ dot, r, sp: (0.06 - i * 0.015) * (i % 2 ? -1 : 1), ph: Math.random() * 6.28 });
+    }
+  });
+
+  // ---------- Encuadre ----------
+  // Se agrupa en un frame y se renderiza en el acto, así el canvas no queda en blanco.
+  let lastW = 0;
+  let lastH = 0;
+  let resizeQueued = false;
+  const resize = (): void => {
+    resizeQueued = false;
+    const w = container.clientWidth || 1;
+    const h = container.clientHeight || 1;
+    if (w === lastW && h === lastH) return;
+    lastW = w;
+    lastH = h;
+    const a = w / h;
+    const T = 0.5735; // tan(16°): semi-FOV vertical de la cámara
+    const narrow = isNarrow();
+    renderer.setPixelRatio(pixelRatio());
+    renderer.setSize(w, h, false);
+    camera.aspect = a;
+    const D = narrow
+      ? Math.max(2 / (0.8 * T), 2 / (0.8 * T * a))
+      : Math.max(2 / (0.78 * T), 2 / (0.36 * T * a));
+    camera.position.set(0, 0, D);
+    camera.setViewOffset(w, h, narrow ? 0 : -w * 0.08, 0, w, h);
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+  };
+  const queueResize = (): void => {
+    if (!resizeQueued) {
+      resizeQueued = true;
+      requestAnimationFrame(resize);
+    }
+  };
+  resize();
+  const resizeObserver = new ResizeObserver(queueResize);
+  resizeObserver.observe(container);
+
+  // ---------- Estado de movimiento ----------
+  const S = { rotY: 0.5, targetY: 0.5, vel: 0, tiltX: -0.1, targetTilt: -0.1, scale: 0.86, scaleV: 0, selOn: 0, selTarget: 0, rimBoost: 0 };
+  const ripStart = [-1, -1, -1, -1];
+  let ripIdx = 0;
+  const clock = new Clock();
+  const addRipple = (v: Vector3): void => {
+    const i = ripIdx++ % 4;
+    U.uRip.value[i].copy(v);
+    ripStart[i] = clock.getElapsedTime();
+  };
+
+  const targetFor = (c: GlobeCountry): number => -Math.PI / 2 - c.lng * D2R;
+  const targets = countries.map(targetFor);
+  const lo = Math.min(ROT_MIN * D2R, ...targets.map((t) => t - 0.15));
+  const hi = Math.max(ROT_MAX * D2R, ...targets.map((t) => t + 0.15));
+  const clamp = (v: number): number => Math.min(hi, Math.max(lo, v));
+
+  // ---------- Interacción ----------
+  const ray = new Raycaster();
+  const ndc = new Vector2();
+  const aim = (e: PointerEvent): void => {
+    const r = el.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+  };
+  // Devuelve el punto del globo bajo el puntero y el país (polígono o marcador), o -1.
+  const hitTest = (e: PointerEvent): { point: Vector3 | null; index: number } => {
+    aim(e);
+    const marker = ray.intersectObjects(markers, false)[0];
+    const hit = ray.intersectObject(globe, false)[0];
+    let index = -1;
+    if (hit?.uv) {
+      const x = Math.min(ID_W - 1, Math.floor(hit.uv.x * ID_W));
+      const y = Math.min(ID_H - 1, Math.floor((1 - hit.uv.y) * ID_H));
+      const o = (y * ID_W + x) * 4;
+      const n = Math.round(idData[o] / 16) + Math.round(idData[o + 1] / 16) * 16;
+      if (n >= 1 && n <= countries.length) index = n - 1;
+    }
+    if (index < 0 && marker && (!hit || marker.distance <= hit.distance + 0.02)) {
+      index = marker.object.userData.index as number;
+    }
+    return { point: hit?.point ?? null, index };
+  };
+
+  let selected = -1;
+  const showTip = (name: string, e: PointerEvent): void => {
+    if (!ui.hoverTip) return;
+    const r = container.getBoundingClientRect();
+    ui.hoverTip.textContent = name;
+    ui.hoverTip.style.transform = `translate(${e.clientX - r.left + 14}px, ${e.clientY - r.top + 14}px)`;
+    ui.hoverTip.style.opacity = '1';
+  };
+  const hideTip = (): void => {
+    if (ui.hoverTip) ui.hoverTip.style.opacity = '0';
+  };
+
+  let drag = false;
   let lastX = 0;
-  let lastY = 0;
-  let lastMoveTime = 0;
-  let downX = 0;
-  let downY = 0;
-  const CLICK_MOVE_THRESHOLD = 6; // px — por debajo de esto, un pointerdown+up cuenta como clic, no arrastre
-
-  // ---------- Tooltip al hacer hover sobre un marcador ----------
-  const tooltipEl = document.createElement('div');
-  tooltipEl.className = 'globe-tooltip';
-  tooltipEl.setAttribute('role', 'status');
-  container.appendChild(tooltipEl);
-
-  const raycaster = new Raycaster();
-  const pointerNdc = new Vector2();
-  const markerWorldPos = new Vector3();
-  const haloMeshes = Array.from(halos.values());
-  let hoveredSlug: string | null = null;
-
-  const slugAtClientPoint = (clientX: number, clientY: number): string | null => {
-    const rect = canvasEl.getBoundingClientRect();
-    pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
-    pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
-
-    raycaster.setFromCamera(pointerNdc, camera);
-    const hit = raycaster.intersectObjects(haloMeshes, false)[0];
-    return (hit?.object.userData.slug as string | undefined) ?? null;
+  let moved = 0;
+  const onPointerDown = (e: PointerEvent): void => {
+    drag = true;
+    lastX = e.clientX;
+    moved = 0;
+    S.vel = 0;
+    el.setPointerCapture(e.pointerId);
+    el.style.cursor = 'grabbing';
+    hideTip();
   };
-
-  const updateTooltip = (clientX: number, clientY: number): void => {
-    const slug = slugAtClientPoint(clientX, clientY);
-
-    if (slug !== hoveredSlug) {
-      hoveredSlug = slug;
-      canvasEl.style.cursor = slug ? 'pointer' : 'grab';
-      if (slug) {
-        const country = countries.find((c) => c.slug === slug);
-        tooltipEl.textContent = country?.name ?? slug;
-        tooltipEl.classList.add('is-visible');
-      } else {
-        tooltipEl.classList.remove('is-visible');
-      }
-    }
-
-    if (slug) {
-      const rect = canvasEl.getBoundingClientRect();
-      const marker = dots.get(slug);
-      marker?.getWorldPosition(markerWorldPos);
-      const ndc = markerWorldPos.clone().project(camera);
-      const px = (ndc.x * 0.5 + 0.5) * rect.width;
-      const py = (-ndc.y * 0.5 + 0.5) * rect.height;
-      tooltipEl.style.transform = `translate(${px}px, ${py}px) translate(-50%, -140%)`;
-    }
-  };
-
-  const clearTooltip = (): void => {
-    hoveredSlug = null;
-    tooltipEl.classList.remove('is-visible');
-    // No pisar el cursor 'grabbing': esto también se llama al iniciar un
-    // arrastre (justo después de fijarlo), donde debe quedar como está.
-    if (!dragging) canvasEl.style.cursor = 'grab';
-  };
-
-  const applyRotation = (deltaX: number, deltaY: number): void => {
-    // Ejes de MUNDO (no locales): así arrastrar siempre gira "hacia donde
-    // apunta el cursor" sin importar la orientación actual del globo.
-    const qYaw = new Quaternion().setFromAxisAngle(Y_AXIS, deltaX * DRAG_SENSITIVITY);
-    const qPitch = new Quaternion().setFromAxisAngle(X_AXIS, deltaY * DRAG_SENSITIVITY);
-    group.quaternion.premultiply(qYaw).premultiply(qPitch);
-  };
-
-  const onPointerDown = (event: PointerEvent): void => {
-    dragging = true;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    downX = event.clientX;
-    downY = event.clientY;
-    lastMoveTime = performance.now();
-    inertia.x = 0;
-    inertia.y = 0;
-    gsap.killTweensOf(navProxy); // el arrastre interrumpe una navegación en curso
-    pauseIdle();
-    canvasEl.style.cursor = 'grabbing';
-    canvasEl.setPointerCapture(event.pointerId);
-    clearTooltip(); // arrastrando no tiene sentido mostrar el hint de hover
-  };
-
-  const onPointerMove = (event: PointerEvent): void => {
-    if (!dragging) {
-      updateTooltip(event.clientX, event.clientY);
+  const onPointerMove = (e: PointerEvent): void => {
+    if (drag) {
+      const dx = e.clientX - lastX;
+      lastX = e.clientX;
+      moved += Math.abs(dx) + Math.abs(e.movementY || 0);
+      let d = dx * 0.0055;
+      const nr = S.rotY + d;
+      if (nr > hi || nr < lo) d *= 0.3; // resistencia elástica al pasarse
+      S.rotY += d;
+      S.targetY = S.rotY;
+      S.vel = d;
       return;
     }
-    const now = performance.now();
-    const dt = Math.max((now - lastMoveTime) / 1000, 1 / 120);
-    const dx = event.clientX - lastX;
-    const dy = event.clientY - lastY;
-
-    applyRotation(dx, dy);
-
-    // Velocidad instantánea, para que la inercia siga con el mismo "impulso"
-    // que traía el gesto justo antes de soltar.
-    inertia.y = dx * DRAG_SENSITIVITY / dt;
-    inertia.x = dy * DRAG_SENSITIVITY / dt;
-
-    lastX = event.clientX;
-    lastY = event.clientY;
-    lastMoveTime = now;
+    if (e.pointerType !== 'mouse') return;
+    const { index } = hitTest(e);
+    el.style.cursor = index >= 0 ? 'pointer' : 'grab';
+    if (index >= 0 && index !== selected) showTip(countries[index].name, e);
+    else hideTip();
+  };
+  const onPointerUp = (e: PointerEvent): void => {
+    if (!drag) return;
+    drag = false;
+    el.style.cursor = 'grab';
+    if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+    if (moved >= 6) return;
+    S.vel = 0;
+    const { point, index } = hitTest(e);
+    if (!point) return;
+    addRipple(spin.worldToLocal(point.clone()).normalize());
+    S.scaleV -= 0.0025;
+    S.rimBoost = 0.18;
+    if (index >= 0 && onCountryClick) onCountryClick(countries[index].slug);
+  };
+  const onPointerCancel = (): void => {
+    drag = false;
   };
 
-  const endDrag = (event: PointerEvent): void => {
-    if (!dragging) return;
-    dragging = false;
-    pauseIdle();
-    canvasEl.style.cursor = 'grab';
-    if (canvasEl.hasPointerCapture(event.pointerId)) {
-      canvasEl.releasePointerCapture(event.pointerId);
-    }
-  };
+  el.style.cursor = 'grab';
+  el.addEventListener('pointerdown', onPointerDown);
+  el.addEventListener('pointermove', onPointerMove);
+  el.addEventListener('pointerup', onPointerUp);
+  el.addEventListener('pointercancel', onPointerCancel);
+  el.addEventListener('pointerleave', hideTip);
 
-  const onPointerUp = (event: PointerEvent): void => {
-    if (!dragging) return;
-    // Si el gesto apenas se movió, es un clic (no un arrastre) — si cayó
-    // sobre un marcador, se comporta igual que elegirlo en la lista.
-    const moved = Math.hypot(event.clientX - downX, event.clientY - downY);
-    endDrag(event);
-    if (moved > CLICK_MOVE_THRESHOLD || !onCountryClick) return;
-
-    const slug = slugAtClientPoint(event.clientX, event.clientY);
-    if (slug) onCountryClick(slug);
-  };
-
-  canvasEl.addEventListener('pointerdown', onPointerDown);
-  canvasEl.addEventListener('pointermove', onPointerMove);
-  canvasEl.addEventListener('pointerup', onPointerUp);
-  canvasEl.addEventListener('pointercancel', endDrag);
-  canvasEl.addEventListener('pointerleave', clearTooltip);
-
-  // Sin dibujar mientras la sección está fuera de pantalla (o la pestaña
-  // oculta): el loop sigue barato (solo actualiza el quaternion) y el GPU
-  // descansa — en móvil es lo que más batería consumía de toda la página.
-  let isVisible = true;
+  // ---------- Bucle ----------
   let inViewport = true;
-  const syncVisible = (): void => { isVisible = inViewport && document.visibilityState === 'visible'; };
-  if (typeof IntersectionObserver === 'function') {
-    new IntersectionObserver((entries) => {
-      inViewport = entries.some((e) => e.isIntersecting);
-      syncVisible();
-    }, { rootMargin: '120px' }).observe(container);
-  }
-  document.addEventListener('visibilitychange', syncVisible);
+  const intersection = new IntersectionObserver((entries) => {
+    inViewport = entries.some((en) => en.isIntersecting);
+  }, { rootMargin: '120px' });
+  intersection.observe(container);
 
+  const projected = new Vector3();
+  const toCamera = new Vector3();
+  let first = true;
   let rafId = 0;
-  const clock = new Clock();
-  const render = (): void => {
-    const dt = clock.getDelta();
+  const loop = (): void => {
+    rafId = requestAnimationFrame(loop);
+    if (!inViewport || document.hidden) return;
+    if (resizeQueued) resize();
+    const t = clock.getElapsedTime();
 
-    if (!dragging && (Math.abs(inertia.x) > INERTIA_MIN_SPEED || Math.abs(inertia.y) > INERTIA_MIN_SPEED)) {
-      applyRotation((inertia.y / DRAG_SENSITIVITY) * dt, (inertia.x / DRAG_SENSITIVITY) * dt);
-      const decay = Math.pow(INERTIA_DAMPING_PER_SEC, dt);
-      inertia.x *= decay;
-      inertia.y *= decay;
-    }
-
-    // Barrido pendular en reposo sobre la franja de países conectados. Tras
-    // una interacción espera IDLE_RESUME_DELAY (y a que muera la inercia),
-    // alinea la fase con la orientación actual y desde ahí "persigue" el
-    // objetivo con un slerp suavizado — sin saltos ni tirones.
-    const inertiaAlive = Math.abs(inertia.x) > INERTIA_MIN_SPEED || Math.abs(inertia.y) > INERTIA_MIN_SPEED;
-    if (autoSpin && !dragging && !navigating && !inertiaAlive) {
-      if (idleWait > 0) {
-        idleWait -= dt;
+    if (!drag) {
+      if (Math.abs(S.vel) > 1e-5) {
+        S.rotY += S.vel;
+        S.vel *= S.rotY > hi || S.rotY < lo ? 0.6 : 0.94;
+        S.targetY = clamp(S.rotY);
       } else {
-        if (!idleArmed) armIdle();
-        idleTime += dt;
-        const lng = idleLngCenter + idleLngHalf * Math.sin(idlePhase + (idleTime * 2 * Math.PI) / IDLE_PERIOD);
-        const lat = idleLatCenter + IDLE_LAT_AMPLITUDE * Math.sin((idleTime * 2 * Math.PI) / IDLE_LAT_PERIOD);
-        idleTarget.copy(quaternionFacingCamera(latLngToVector3(lat, lng, 1)));
-        group.quaternion.slerp(idleTarget, 1 - Math.exp(-dt * IDLE_BLEND));
+        S.targetY = clamp(S.targetY);
+        S.rotY += (S.targetY - S.rotY) * 0.055;
+      }
+    }
+    S.tiltX += (S.targetTilt - S.tiltX) * 0.05;
+    S.scaleV += (1 - S.scale) * 0.1;
+    S.scaleV *= 0.8;
+    S.scale += S.scaleV;
+    spin.rotation.y = S.rotY;
+    tilt.rotation.x = S.tiltX;
+    rootG.scale.setScalar(S.scale);
+    parts.rotation.y = t * 0.008;
+    bokeh.position.set(Math.cos(t * 0.1) * 0.2, Math.sin(t * 0.15) * 0.15, 0);
+    orbits.rotation.z = t * 0.01;
+    orbitDots.forEach((o) => {
+      const a = o.ph + t * o.sp;
+      o.dot.position.set(Math.cos(a) * o.r, Math.sin(a) * o.r, 0);
+    });
+    S.selOn += (S.selTarget - S.selOn) * 0.06;
+    U.uTime.value = t;
+    U.uSelOn.value = S.selOn;
+    for (let i = 0; i < 4; i++) {
+      const s = ripStart[i];
+      U.uRipT.value[i] = s >= 0 && t - s < 2.2 ? t - s : -1;
+    }
+    S.rimBoost *= 0.94;
+    U.uRimI.value = 0.26 + S.rimBoost;
+    globeMat.emissiveIntensity = 0.6 + 0.22 * Math.sin(t * 2.2);
+    renderer.render(scene, camera);
+
+    // Tooltip clavado sobre el país elegido: visible solo de frente y quieto.
+    if (ui.selTip) {
+      if (S.selTarget > 0) {
+        const wp = spin.localToWorld(projected.copy(U.uSel.value).multiplyScalar(1.01));
+        const facing = toCamera.copy(camera.position).sub(wp).normalize().dot(wp.clone().normalize());
+        const p = wp.project(camera);
+        ui.selTip.style.transform = `translate(${(((p.x + 1) / 2) * container.clientWidth).toFixed(1)}px, ${(((1 - p.y) / 2) * container.clientHeight).toFixed(1)}px)`;
+        ui.selTip.style.opacity = facing > 0.35 && Math.abs(S.targetY - S.rotY) < 0.12 && !drag ? '1' : '0';
+      } else {
+        ui.selTip.style.opacity = '0';
       }
     }
 
-    if (isVisible) renderer.render(scene, camera);
-    rafId = requestAnimationFrame(render);
+    if (first) {
+      first = false;
+      el.classList.add('is-ready');
+    }
   };
-  render();
+  loop();
 
-  const onResize = (): void => {
-    const w = container.clientWidth;
-    const h = container.clientHeight;
-    if (!w || !h) return;
-    renderer.setSize(w, h);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+  let rippleTimer = 0;
+
+  const focusCountry = (slug: string, fromTap = false): void => {
+    const i = countries.findIndex((c) => c.slug === slug);
+    if (i < 0) return;
+    const c = countries[i];
+    selected = i;
+
+    S.targetY = clamp(targets[i]);
+    S.vel = 0;
+    S.targetTilt = c.lat * D2R * 0.85;
+
+    ex.fillStyle = '#000';
+    ex.fillRect(0, 0, AUX_W, AUX_W / 2);
+    const g = feats[i];
+    if (g) {
+      ex.save();
+      ex.beginPath();
+      trace(ex, g, AUX_W, AUX_W / 2);
+      ex.shadowColor = '#fff';
+      ex.shadowBlur = 10;
+      ex.fillStyle = 'rgba(235,250,255,0.6)';
+      ex.fill('evenodd');
+      ex.restore();
+    }
+    emTex.needsUpdate = true;
+
+    markers.forEach((m, k) => m.scale.setScalar(k === i ? 0.07 : 0.05));
+    U.uSel.value.copy(ll2v(c.lat, c.lng));
+    S.selOn = 0;
+    S.selTarget = 1;
+    if (ui.selTipLabel) ui.selTipLabel.textContent = c.name;
+    hideTip();
+
+    window.clearTimeout(rippleTimer);
+    if (!fromTap) {
+      rippleTimer = window.setTimeout(() => {
+        addRipple(ll2v(c.lat, c.lng));
+        S.rimBoost = 0.1;
+      }, 700);
+    }
   };
-  window.addEventListener('resize', onResize);
 
   const destroy = (): void => {
     cancelAnimationFrame(rafId);
-    window.removeEventListener('resize', onResize);
-    canvasEl.removeEventListener('pointerdown', onPointerDown);
-    canvasEl.removeEventListener('pointermove', onPointerMove);
-    canvasEl.removeEventListener('pointerup', onPointerUp);
-    canvasEl.removeEventListener('pointercancel', endDrag);
-    canvasEl.removeEventListener('pointerleave', clearTooltip);
-    tooltipEl.remove();
-    gsap.killTweensOf(navProxy);
-    geometry.dispose();
-    material.dispose();
-    dayMap.dispose();
-    specularMap.dispose();
-    normalMap.dispose();
-    dots.forEach((dot) => {
-      dot.geometry.dispose();
-      (dot.material as MeshBasicMaterial).dispose();
+    window.clearTimeout(rippleTimer);
+    resizeObserver.disconnect();
+    intersection.disconnect();
+    el.removeEventListener('pointerdown', onPointerDown);
+    el.removeEventListener('pointermove', onPointerMove);
+    el.removeEventListener('pointerup', onPointerUp);
+    el.removeEventListener('pointercancel', onPointerCancel);
+    el.removeEventListener('pointerleave', hideTip);
+    scene.traverse((obj) => {
+      const o = obj as Partial<Mesh>;
+      o.geometry?.dispose();
+      const mat = o.material as Material | Material[] | undefined;
+      (Array.isArray(mat) ? mat : mat ? [mat] : []).forEach((m) => m.dispose());
     });
-    halos.forEach((halo) => {
-      halo.geometry.dispose();
-      (halo.material as MeshBasicMaterial).dispose();
-    });
+    textureList.forEach((t) => t.dispose());
     renderer.dispose();
-    container.removeChild(renderer.domElement);
+    el.remove();
   };
 
   return { focusCountry, destroy };
