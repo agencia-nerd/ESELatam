@@ -229,6 +229,12 @@ add_action('acf/init', static function (): void {
                 'step'         => 'any',
                 'wrapper'      => ['width' => '50'],
             ]),
+            $campo('text', 'iso', __('Código ISO numérico del país', 'ese-latam'), [
+                'instructions' => __('Tres dígitos que identifican al país en el mapa del globo (Perú: 604, México: 484, Chile: 152). Con él, el globo dibuja el contorno del país, lo ilumina al elegirlo y se puede tocar el país entero. Búscalo como "ISO 3166 numérico" + el nombre del país. Vacío: se usa el código conocido de los países de Latinoamérica; si no lo hay, el país solo se marca con un punto.', 'ese-latam'),
+                'maxlength'    => 3,
+                'placeholder'  => '604',
+                'wrapper'      => ['width' => '50'],
+            ]),
         ],
     ]);
 });

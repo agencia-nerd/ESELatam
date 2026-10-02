@@ -29,7 +29,7 @@ if (! defined('ABSPATH')) {
  * la ficha "próximamente" que se redacta en la misma página de opciones; si
  * ese texto está vacío, el país aparece sin fichas.
  *
- * @return list<array{slug: string, name: string, lat: float, lng: float, items: list<array<string, string>>}>
+ * @return list<array{slug: string, name: string, lat: float, lng: float, iso: string, items: list<array<string, string>>}>
  */
 function ese_latam_distribuidores(): array {
     static $cache = null;
@@ -77,11 +77,53 @@ function ese_latam_distribuidores(): array {
             'name'  => $termino->name,
             'lat'   => (float) ese_latam_campo_termino('lat', $termino->term_id),
             'lng'   => (float) ese_latam_campo_termino('lng', $termino->term_id),
+            'iso'   => ese_latam_pais_iso($termino),
             'items' => $items,
         ];
     }
 
     return $cache = $paises;
+}
+
+/**
+ * Código ISO 3166-1 numérico del país (3 dígitos, con ceros a la izquierda):
+ * es la clave con la que el globo encuentra su contorno en el mapa de
+ * fronteras (assets/data/countries-110m.json). Sale del campo del término y,
+ * vacío, de los países de Latinoamérica que ya conocemos por su slug.
+ * Cadena vacía si no hay forma de saberlo: el globo solo pone el punto.
+ */
+function ese_latam_pais_iso(WP_Term $termino): string {
+    $iso = preg_replace('/\D+/', '', (string) ese_latam_campo_termino('iso', $termino->term_id)) ?? '';
+    if ('' !== $iso) {
+        return str_pad($iso, 3, '0', STR_PAD_LEFT);
+    }
+
+    $conocidos = [
+        'argentina'            => '032',
+        'bolivia'              => '068',
+        'brasil'               => '076',
+        'chile'                => '152',
+        'colombia'             => '170',
+        'costa-rica'           => '188',
+        'cuba'                 => '192',
+        'ecuador'              => '218',
+        'el-salvador'          => '222',
+        'guatemala'            => '320',
+        'honduras'             => '340',
+        'mexico'               => '484',
+        'nicaragua'            => '558',
+        'panama'               => '591',
+        'paraguay'             => '600',
+        'peru'                 => '604',
+        'puerto-rico'          => '630',
+        'republica-dominicana' => '214',
+        'uruguay'              => '858',
+        'venezuela'            => '862',
+    ];
+
+    $clave = sanitize_title(remove_accents($termino->name));
+
+    return $conocidos[$termino->slug] ?? $conocidos[$clave] ?? '';
 }
 
 /**

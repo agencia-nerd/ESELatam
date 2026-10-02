@@ -572,3 +572,50 @@ function ese_latam_icono_hdpe(string $clave): string {
 
     return isset($iconos[$clave]) ? $iconos[$clave]['path'] : '';
 }
+
+/**
+ * Imagen de fondo del hero de la portada. La usan el
+ * <img> de front-page.php y el <link rel="preload"> del <head> (ver
+ * inc/enqueue.php): salen del mismo lugar para que el navegador no descargue
+ * dos versiones distintas.
+ *
+ * El campo "Imagen de fondo del hero" (hero_video_poster, devuelve URL) manda;
+ * si es un adjunto de la biblioteca se aprovecha el srcset que generó
+ * WordPress. Vacío: el fondo del diseño que trae el theme, en tres anchos.
+ *
+ * @return array{src: string, srcset: string, width: int, height: int}
+ */
+function ese_latam_hero_fondo(): array {
+    static $fondo = null;
+    if (null !== $fondo) {
+        return $fondo;
+    }
+
+    $url = ese_latam_img_url(ese_latam_home('hero_video_poster'));
+
+    if ('' !== $url) {
+        $id  = attachment_url_to_postid($url);
+        $img = $id > 0 ? wp_get_attachment_image_src($id, 'full') : false;
+
+        $fondo = [
+            'src'    => is_array($img) ? (string) $img[0] : $url,
+            'srcset' => $id > 0 ? (string) wp_get_attachment_image_srcset($id, 'full') : '',
+            'width'  => is_array($img) ? (int) $img[1] : 1920,
+            'height' => is_array($img) ? (int) $img[2] : 1080,
+        ];
+        return $fondo;
+    }
+
+    $srcset = [];
+    foreach ([960, 1600, 2560] as $ancho) {
+        $srcset[] = ese_latam_asset('hero/hero-fondo-' . $ancho . '.webp') . ' ' . $ancho . 'w';
+    }
+
+    $fondo = [
+        'src'    => ese_latam_asset('hero/hero-fondo-1600.webp'),
+        'srcset' => implode(', ', $srcset),
+        'width'  => 2560,
+        'height' => 1448,
+    ];
+    return $fondo;
+}
